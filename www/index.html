@@ -307,6 +307,15 @@ body{background:radial-gradient(900px 360px at 50% -140px,var(--green-soft),tran
 .tabs button[aria-current="page"]{background:var(--green-soft)}.tabs button[aria-current="page"]::after{display:none}
 .map-btns{display:flex;flex-wrap:wrap;gap:8px}
 .map-stat{display:flex;gap:12px;align-items:center;padding:9px 13px;border-radius:12px;background:var(--green-soft);color:var(--green);font-weight:600;font-size:.88rem}
+.chips.picked button{display:inline-flex;align-items:center;gap:6px}
+.chips.picked button span{font-size:.7rem;opacity:.75}
+.combo-list{list-style:none;margin:6px 0 0;padding:4px;max-height:248px;overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.combo-list li{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:44px;padding:0 12px;border-radius:9px;cursor:pointer}
+.combo-list li small{color:var(--ink-2);font-weight:600}
+.combo-list li[aria-selected="true"]{background:var(--green-soft);color:var(--green);font-weight:600}
+.combo-list li[aria-selected="true"] small::before{content:"✓ "}
+.combo-list li:not([aria-selected="true"]):hover{background:var(--surface-2)}
+.combo-list li.combo-none{color:var(--ink-2);font-size:.86rem;cursor:default;padding:10px 12px;min-height:0}
 </style>
 </head>
 <body>
@@ -336,6 +345,13 @@ const CURS = {
   AUD: { name: '호주 달러', unit: '호주달러', dec: 2, tz: 'Australia/Sydney' },
   CAD: { name: '캐나다 달러', unit: '캐나다달러', dec: 2, tz: 'America/Toronto' },
   NZD: { name: '뉴질랜드 달러', unit: '뉴질랜드달러', dec: 2, tz: 'Pacific/Auckland' },
+  MOP: { name: '마카오 파타카', unit: '파타카', dec: 2, tz: 'Asia/Hong_Kong' },
+  AED: { name: '아랍에미리트 디르함', unit: '디르함', dec: 2, tz: 'Asia/Dubai' },
+  TRY: { name: '튀르키예 리라', unit: '리라', dec: 2, tz: 'Europe/Istanbul' },
+  CZK: { name: '체코 코루나', unit: '코루나', dec: 2, tz: 'Europe/Prague' },
+  HUF: { name: '헝가리 포린트', unit: '포린트', dec: 0, tz: 'Europe/Prague' },
+  MNT: { name: '몽골 투그릭', unit: '투그릭', dec: 0, tz: 'Asia/Ulaanbaatar' },
+  INR: { name: '인도 루피', unit: '루피', dec: 2, tz: 'Asia/Kolkata' },
 };
 function ci(cur) { return CURS[cur] || { name: cur, unit: ' ' + cur, dec: 2 }; }
 function defaultPer(cur) { return (CURS[cur] && CURS[cur].per) || 1; }
@@ -467,7 +483,8 @@ const TZS = [['Asia/Seoul', '서울'], ['Asia/Tokyo', '일본'], ['Asia/Shanghai
   ['Asia/Jakarta', '자카르타'], ['Asia/Makassar', '발리'], ['Pacific/Guam', '괌/사이판'], ['Asia/Dubai', '두바이'], ['Europe/Istanbul', '튀르키예'],
   ['Europe/London', '영국'], ['Europe/Paris', '프랑스/이탈리아/스페인'], ['Europe/Zurich', '스위스'], ['Australia/Sydney', '시드니'], ['Pacific/Auckland', '뉴질랜드'],
   ['America/New_York', '뉴욕'], ['America/Chicago', '시카고'], ['America/Los_Angeles', 'LA/샌프란시스코'], ['America/Toronto', '토론토'],
-  ['America/Vancouver', '밴쿠버'], ['Pacific/Honolulu', '하와이']];
+  ['America/Vancouver', '밴쿠버'], ['Pacific/Honolulu', '하와이'],
+  ['Europe/Prague', '체코/헝가리'], ['Asia/Ulaanbaatar', '몽골'], ['Asia/Kolkata', '인도']];
 const BASIC_PACK = ['여권', '항공권/숙소 예약 확인', '휴대폰 충전기', '보조배터리', '멀티 어댑터', '상비약', '유심/eSIM', '여행자 보험', '환전'];
 
 // ===== 유틸 =====
@@ -1304,8 +1321,8 @@ function sheetTrip(t) {
   openSheet(sheetHead(isNew ? '새 여행' : '여행 설정') +
     `<div class="fld"><label for="t-name">여행 이름</label><input id="t-name" value="${esc(d.name)}" placeholder="예: 7월 오사카" autocomplete="off"></div>
     <div class="fld two"><div><label for="t-start">가는 날</label><input type="date" id="t-start" value="${esc(d.start)}"></div><div><label for="t-end">오는 날</label><input type="date" id="t-end" value="${esc(d.end)}"></div></div>
-    <div class="fld"><span class="fl">쓸 외화</span><div class="chips" data-curs></div>
-      <div class="rate-in" style="grid-template-columns:1fr auto"><input id="t-curx" placeholder="목록에 없으면 통화 코드 (예: MOP)" maxlength="3" autocomplete="off" aria-label="통화 코드"><button class="btn small" data-addcur>추가</button></div></div>
+    <div class="fld"><label for="t-curx">쓸 외화</label><div class="chips picked" data-curs></div>
+      <div class="combo"><input id="t-curx" role="combobox" aria-expanded="false" aria-controls="t-curlist" placeholder="통화나 나라 검색 (예: 홍콩, USD)" autocomplete="off"><ul class="combo-list" id="t-curlist" role="listbox" hidden></ul></div></div>
     <div class="fld"><label for="t-tz">현지 시간대</label><select id="t-tz"></select></div>
     <div class="fld"><label for="t-budget">예산 (원)</label><input id="t-budget" inputmode="numeric" value="${d.budget ? nf(d.budget) : ''}" placeholder="없으면 비워 두세요" autocomplete="off"></div>
     <div class="fld"><label for="t-members">함께 가는 사람</label><input id="t-members" value="${esc(d.members.join(', '))}" placeholder="쉼표로 구분 (예: 나, 민지)" autocomplete="off">
@@ -1315,13 +1332,26 @@ function sheetTrip(t) {
     <div class="sheet-sec"><h3>여행 삭제</h3><button class="btn small danger" data-deltrip>이 여행 삭제</button></div>`}`, root => {
     const chips = $('[data-curs]', root), tz = $('#t-tz', root);
     const drawTz = () => { const list = TZS.some(z => z[0] === d.tz) ? TZS : [...TZS, [d.tz, d.tz]]; tz.innerHTML = list.map(([v, l]) => `<option value="${esc(v)}" ${v === d.tz ? 'selected' : ''}>${esc(l)}</option>`).join(''); };
-    const drawCurs = () => { chips.innerHTML = [...new Set([...base, ...d.curs])].map(c => `<button type="button" data-v="${esc(c)}" aria-pressed="${d.curs.includes(c)}">${esc(ci(c).name)}</button>`).join(''); };
+    const curx = $('#t-curx', root), list = $('#t-curlist', root);
+    const drawCurs = () => { chips.innerHTML = d.curs.map(c => `<button type="button" data-v="${esc(c)}" aria-pressed="true" aria-label="${esc(ci(c).name)} 빼기">${esc(ci(c).name)}<span aria-hidden="true">✕</span></button>`).join('') || '<span class="hint">아래에서 통화를 골라 주세요</span>'; };
+    const drawList = () => {
+      const q = curx.value.trim().toLowerCase(), code = q.toUpperCase();
+      const hit = [...new Set([...base, ...d.curs])].filter(c => !q || [c, ci(c).name, tzLabel(ci(c).tz || '')].join(' ').toLowerCase().includes(q));
+      const extra = /^[A-Z]{3}$/.test(code) && code !== 'KRW' && !hit.includes(code) ? `<li role="option" data-v="${code}">${code} 코드로 추가</li>` : '';
+      list.innerHTML = hit.map(c => `<li role="option" data-v="${esc(c)}" aria-selected="${d.curs.includes(c)}"><span>${esc(ci(c).name)}</span><small>${esc(c)}</small></li>`).join('') + extra
+        || '<li class="combo-none">찾는 통화가 없어요. 세 글자 코드(예: MOP)를 입력하면 추가돼요.</li>';
+    };
+    const openList = v => { list.hidden = !v; curx.setAttribute('aria-expanded', v); if (v) drawList(); };
     const autoTz = () => { if (!tzTouched && d.curs[0] && ci(d.curs[0]).tz) { d.tz = ci(d.curs[0]).tz; drawTz(); } };
-    chips.onclick = e => { const b = e.target.closest('button'); if (!b) return; const c = b.dataset.v; d.curs = d.curs.includes(c) ? d.curs.filter(x => x !== c) : [...d.curs, c]; drawCurs(); autoTz(); };
-    $('[data-addcur]', root).onclick = () => {
-      const c = $('#t-curx', root).value.trim().toUpperCase();
-      if (!/^[A-Z]{3}$/.test(c) || c === 'KRW') { toast('세 글자 통화 코드를 입력해 주세요.'); return; }
-      if (!d.curs.includes(c)) d.curs.push(c); $('#t-curx', root).value = ''; drawCurs();
+    const pick = c => { d.curs = d.curs.includes(c) ? d.curs.filter(x => x !== c) : [...d.curs, c]; drawCurs(); autoTz(); if (!list.hidden) drawList(); };
+    chips.onclick = e => { const b = e.target.closest('button'); if (b) pick(b.dataset.v); };
+    curx.onfocus = curx.oninput = () => openList(true);
+    curx.onblur = () => openList(false);
+    list.onmousedown = e => e.preventDefault();
+    list.onclick = e => { const li = e.target.closest('[data-v]'); if (!li) return; pick(li.dataset.v); curx.value = ''; drawList(); };
+    curx.onkeydown = e => {
+      if (e.key === 'Escape' && !list.hidden) { e.preventDefault(); openList(false); }
+      if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); const li = curx.value.trim() && $('[data-v]', list); if (li) { pick(li.dataset.v); curx.value = ''; drawList(); } }
     };
     tz.onchange = () => { tzTouched = true; d.tz = tz.value; };
     drawCurs(); drawTz();
