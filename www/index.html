@@ -1315,7 +1315,7 @@ function sheetDiary(t, id) {
 // ----- 여행 설정 -----
 function sheetTrip(t) {
   const isNew = !t;
-  const d = isNew ? newTrip({ name: '', curs: ['JPY'] }) : clone(t);
+  const d = isNew ? newTrip({ name: '', curs: [], tz: 'Asia/Seoul' }) : clone(t);
   let tzTouched = !isNew;
   const base = Object.keys(CURS).filter(c => c !== 'KRW');
   openSheet(sheetHead(isNew ? '새 여행' : '여행 설정') +
