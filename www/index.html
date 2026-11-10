@@ -279,6 +279,34 @@ dialog#sheet::backdrop{background:rgba(8,18,15,.5)}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 @media (prefers-reduced-motion: reduce){#toast{transition:none}}
 @media (max-width:380px){.kinds{grid-template-columns:1fr}.act-row{grid-template-columns:1fr 1fr}}
+
+/* ===== 디자인 개선 ===== */
+:root{--r:18px;--sh:0 1px 2px rgba(20,50,40,.06),0 10px 26px -14px rgba(20,50,40,.28)}
+body{background:radial-gradient(900px 360px at 50% -140px,var(--green-soft),transparent 70%),var(--paper)}
+#app{padding-bottom:132px}
+.home-head{padding:38px 0 22px}
+.home-head h1{font-size:2.15rem;font-weight:800;letter-spacing:-.03em;background:linear-gradient(120deg,var(--green),var(--card));-webkit-background-clip:text;background-clip:text;color:transparent}
+.btn{border-radius:14px;min-height:46px;transition:transform .12s}
+.btn:active{transform:scale(.97)}
+.btn.small{min-height:36px;border-radius:11px}
+.btn.primary{box-shadow:0 10px 20px -10px var(--green)}
+.trip-card{border:0;border-radius:var(--r);box-shadow:var(--sh);padding:18px}
+.trip-card .dd{background:var(--green-soft);padding:4px 12px;border-radius:999px;font-size:.9rem}
+.info-strip{border:0;border-radius:var(--r);padding:18px;background:linear-gradient(135deg,var(--green),var(--card));color:var(--green-ink);box-shadow:var(--sh)}
+.info-strip .big-d,.info-strip .muted{color:inherit}.info-strip .muted{opacity:.85}
+.plan-day{margin-top:28px}
+.tl-main{border-radius:14px;border-left:4px solid var(--green);box-shadow:var(--sh);padding:12px 14px}
+.tl-links{padding:8px 4px 0}
+.tl-links a{background:var(--green-soft);padding:4px 11px;border-radius:999px;text-decoration:none;font-weight:600}
+.row-main{padding:14px 2px}
+.seg{border-radius:14px}.seg button{border-radius:11px}.seg button[aria-pressed="true"]{box-shadow:var(--sh)}
+.fld input,.fld select,.fld textarea{border-radius:12px}
+.tabs{left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));max-width:696px;margin:0 auto;border:0;border-radius:24px;padding:4px;box-shadow:0 14px 34px -10px rgba(0,0,0,.35)}
+.tabs button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:54px;font-size:.72rem;border-radius:18px}
+.tabs button svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tabs button[aria-current="page"]{background:var(--green-soft)}.tabs button[aria-current="page"]::after{display:none}
+.map-btns{display:flex;flex-wrap:wrap;gap:8px}
+.map-stat{display:flex;gap:12px;align-items:center;padding:9px 13px;border-radius:12px;background:var(--green-soft);color:var(--green);font-weight:600;font-size:.88rem}
 </style>
 </head>
 <body>
@@ -612,6 +640,12 @@ function demoTrip() {
 const cur = () => S.trips[S.tripId] ? normTrip(S.trips[S.tripId]) : null;
 
 // ===== 렌더링 =====
+const TABI = {
+  plan: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>',
+  money: '<svg viewBox="0 0 24 24"><path d="M3 7a3 3 0 0 1 3-3h12v4"/><rect x="3" y="7" width="18" height="13" rx="3"/><circle cx="16.5" cy="13.5" r="1"/></svg>',
+  notes: '<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h7"/></svg>',
+  check: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>',
+  diary: '<svg viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/></svg>' };
 function render() {
   const app = $('#app'), nav = $('#tabs');
   if (!S.ready) { nav.hidden = true; return; }
@@ -622,7 +656,7 @@ function render() {
   app.innerHTML = tripHead(t) + body(t, L);
   nav.hidden = false;
   nav.firstElementChild.innerHTML = [['plan', '일정'], ['money', '가계부'], ['notes', '노트'], ['check', '체크리스트'], ['diary', '일기']]
-    .map(([k, l]) => `<button data-act="tab" data-v="${k}" ${S.tab === k ? 'aria-current="page"' : ''}>${l}</button>`).join('');
+    .map(([k, l]) => `<button data-act="tab" data-v="${k}" ${S.tab === k ? 'aria-current="page"' : ''}>${TABI[k]}<span>${l}</span></button>`).join('');
   tick();
 }
 
@@ -775,6 +809,16 @@ function routeLink(places) {
   u.searchParams.set('travelmode', 'transit');
   return u.toString();
 }
+function mapNameFromUrl(u) {
+  try { const x = new URL(u); const m = x.pathname.match(/\/maps\/place\/([^/]+)/); if (m) return decodeURIComponent(m[1].replace(/\+/g, ' '));
+    const q = x.searchParams.get('q') || x.searchParams.get('query'); if (q && !/^-?\d+(\.\d+)?,/.test(q)) return q; } catch {}
+  return '';
+}
+function parsePlaceInput(v) {
+  v = String(v || ''); const m = v.match(/https?:\/\/[^\s]+/); if (!m) return { name: v.trim(), url: '' };
+  const name = v.replace(m[0], '').split(/\n/).map(x => x.trim()).filter(Boolean)[0] || mapNameFromUrl(m[0]);
+  return { name, url: m[0] };
+}
 function safeUrl(u) { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.toString() : ''; } catch { return ''; } }
 function tabPlan(t) {
   const days = tripDays(t);
@@ -793,7 +837,7 @@ function tabPlan(t) {
       ${items.length ? `<ul class="timeline">${items.map(p => `<li><button class="tl-main" data-act="editPlan" data-id="${p.id}">
         ${p.time ? `<span class="tl-time">${esc(p.time)}</span>` : ''}<span class="tl-title">${esc(p.title || p.place || '일정')}</span>
         ${p.memo ? `<span class="tl-memo">${esc(p.memo)}</span>` : ''}</button>
-        ${p.place || safeUrl(p.link) ? `<div class="tl-links">${p.place ? `<a href="${esc(mapLink(p.place))}" target="_blank" rel="noopener">📍 ${esc(p.place)}</a>` : ''}${safeUrl(p.link) ? `<a href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener">링크 열기</a>` : ''}</div>` : ''}</li>`).join('')}</ul>` : ''}
+        ${p.place || p.mapUrl || safeUrl(p.link) ? `<div class="tl-links">${p.place || p.mapUrl ? `<a href="${esc(safeUrl(p.mapUrl) || mapLink(p.place))}" target="_blank" rel="noopener">📍 ${esc(p.place || p.title || '지도에서 보기')}</a>` : ''}${safeUrl(p.link) ? `<a href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener">링크 열기</a>` : ''}</div>` : ''}</li>`).join('')}</ul>` : ''}
       <button class="btn small ghost add-line" data-act="addPlan" data-date="${esc(d)}">일정 추가</button></section>`;
   }).join('') + (dates.length ? '' : `<button class="btn" data-act="addPlan" data-date="">일정 추가</button>`);
 }
@@ -1149,23 +1193,43 @@ function sheetExchange(t, id) {
 // ----- 일정 -----
 function sheetPlan(t, id, date) {
   const old = id ? t.plans.find(p => p.id === id) : null;
-  const d = old ? clone(old) : { id: uid('p_'), date: date || defaultDate(t), time: '', title: '', place: '', memo: '', link: '', ts: Date.now() };
+  const d = old ? clone(old) : { id: uid('p_'), date: date || defaultDate(t), time: '', title: '', place: '', mapUrl: '', memo: '', link: '', ts: Date.now() };
+  let mapUrl = d.mapUrl || '';
   openSheet(sheetHead(old ? '일정 수정' : '일정 추가') +
     `<div class="fld two"><div><label for="p-date">날짜</label><input type="date" id="p-date" value="${esc(d.date)}"></div><div><label for="p-time">시간</label><input type="time" id="p-time" value="${esc(d.time)}"></div></div>
     <div class="fld"><label for="p-title">할 일</label><input id="p-title" value="${esc(d.title)}" placeholder="예: 오사카성 구경" autocomplete="off"></div>
-    <div class="fld"><label for="p-place">장소</label><input id="p-place" value="${esc(d.place)}" placeholder="지도에서 찾을 이름이나 주소" autocomplete="off"><p class="hint">장소를 넣으면 지도로 열 수 있고, 하루에 두 곳 이상이면 동선과 이동 거리를 지도에서 볼 수 있어요.</p></div>
+    <div class="fld"><label for="p-place">장소</label>
+    <input id="p-place" value="${esc(d.place)}" placeholder="장소 이름 (또는 구글지도 링크 붙여넣기)" autocomplete="off">
+    <div class="map-btns"><button type="button" class="btn small" data-mapopen>🗺️ 구글지도에서 고르기</button><button type="button" class="btn small" data-mappaste>📋 복사한 링크 붙여넣기</button></div>
+    <div class="map-stat" data-mapstat hidden><span>✅ 지도 링크 연결됨</span><button type="button" class="link" data-unmap>해제</button></div>
+    <p class="hint">① 구글지도에서 장소(내가 저장한 장소도 OK)를 열고 ② <b>공유 → 링크 복사</b> ③ 여기로 돌아와 <b>붙여넣기</b>. 장소 이름을 몰라도 돼요.</p></div>
     <div class="fld"><label for="p-memo">메모</label><textarea id="p-memo" style="min-height:80px">${esc(d.memo)}</textarea></div>
     <div class="fld"><label for="p-link">링크</label><input id="p-link" type="url" value="${esc(d.link)}" placeholder="https://" autocomplete="off"></div>
     <div class="sheet-foot">${old ? '<button class="btn danger" data-del>삭제</button>' : ''}<button class="btn primary" data-save>${old ? '수정 저장' : '추가하기'}</button></div>`, root => {
     $('[data-save]', root).onclick = () => {
-      const rec = { ...d, date: $('#p-date', root).value, time: $('#p-time', root).value, title: $('#p-title', root).value.trim(), place: $('#p-place', root).value.trim(), memo: $('#p-memo', root).value.trim(), link: $('#p-link', root).value.trim() };
-      if (!rec.title && !rec.place) { toast('할 일이나 장소를 입력해 주세요.'); $('#p-title', root).focus(); return; }
+      const rec = { ...d, date: $('#p-date', root).value, time: $('#p-time', root).value, title: $('#p-title', root).value.trim(), place: $('#p-place', root).value.trim(), mapUrl, memo: $('#p-memo', root).value.trim(), link: $('#p-link', root).value.trim() };
+      if (!rec.title && !rec.place && !rec.mapUrl) { toast('할 일이나 장소를 입력해 주세요.'); $('#p-title', root).focus(); return; }
       const i = t.plans.findIndex(p => p.id === rec.id);
       if (i >= 0) t.plans[i] = rec; else t.plans.push(rec);
       Store.save(t); closeSheet(); render();
     };
     const del = $('[data-del]', root);
     if (del) del.onclick = () => armConfirm(del, '한 번 더 누르면 삭제', () => { t.plans = t.plans.filter(p => p.id !== d.id); Store.save(t); closeSheet(); render(); });
+    const pl = $('#p-place', root), st = $('[data-mapstat]', root), showMap = () => { st.hidden = !mapUrl; };
+    const takePlace = v => {
+      const r = parsePlaceInput(v);
+      if (r.url) { mapUrl = r.url; if (r.name) pl.value = r.name; else if (/^https?:/.test(pl.value.trim())) pl.value = ''; toast('지도 링크를 연결했어요'); }
+      showMap();
+    };
+    showMap();
+    pl.addEventListener('paste', e => { const txt = (e.clipboardData || window.clipboardData).getData('text'); if (/https?:\/\//.test(txt)) { e.preventDefault(); takePlace(txt); } });
+    pl.addEventListener('change', () => { if (/https?:\/\//.test(pl.value)) takePlace(pl.value); });
+    $('[data-mappaste]', root).onclick = async () => {
+      try { const txt = await navigator.clipboard.readText(); if (/https?:\/\//.test(txt)) takePlace(txt); else toast('복사한 지도 링크가 없어요. 구글지도에서 공유 → 링크 복사를 먼저 해 주세요.'); }
+      catch { toast('입력칸을 길게 눌러 붙여넣어 주세요.'); pl.focus(); }
+    };
+    $('[data-mapopen]', root).onclick = () => window.open(pl.value.trim() && !/^https?:/.test(pl.value.trim()) ? mapLink(pl.value.trim()) : 'https://www.google.com/maps', '_blank');
+    $('[data-unmap]', root).onclick = () => { mapUrl = ''; showMap(); };
     if (!old) $('#p-title', root).focus();
   });
 }
