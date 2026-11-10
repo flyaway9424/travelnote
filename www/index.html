@@ -316,6 +316,20 @@ body{background:radial-gradient(900px 360px at 50% -140px,var(--green-soft),tran
 .combo-list li[aria-selected="true"] small::before{content:"✓ "}
 .combo-list li:not([aria-selected="true"]):hover{background:var(--surface-2)}
 .combo-list li.combo-none{color:var(--ink-2);font-size:.86rem;cursor:default;padding:10px 12px;min-height:0}
+.plan-map{display:grid;gap:8px;margin:4px 0 6px}
+.gmap-slot{border-radius:16px;overflow:hidden;background:var(--surface-2);min-height:260px;display:grid}
+.gmap-slot>.hint{place-self:center;padding:16px;text-align:center}
+.gmap{width:100%;height:260px}
+.gmap.pick{height:300px;border-radius:14px;margin-top:8px}
+[data-pickslot]:empty{display:none}
+.gpin{position:absolute;transform:translate(-50%,-50%);width:28px;height:28px;padding:0;border-radius:50%;border:2px solid #fff;
+  background:var(--green);color:var(--green-ink);font-size:13px;font-weight:700;line-height:1;display:grid;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.35);cursor:pointer}
+.gpin.here{width:22px;height:22px;background:var(--warn)}
+.timeline li[data-no]::before{content:attr(data-no);width:22px;height:22px;left:-30px;top:11px;border:2px solid var(--paper);
+  background:var(--green);color:var(--green-ink);font-size:.72rem;font-weight:700;display:grid;place-items:center}
+.combo-list.places li{display:grid;justify-content:stretch;gap:1px;padding:8px 12px}
+.combo-list.places li small{font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.map-stat span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -675,6 +689,7 @@ function render() {
   nav.firstElementChild.innerHTML = [['plan', '일정'], ['money', '가계부'], ['notes', '노트'], ['check', '체크리스트'], ['diary', '일기']]
     .map(([k, l]) => `<button data-act="tab" data-v="${k}" ${S.tab === k ? 'aria-current="page"' : ''}>${TABI[k]}<span>${l}</span></button>`).join('');
   tick();
+  if (S.tab === 'plan') planMap(t);
 }
 
 function homeHtml() {
@@ -711,9 +726,10 @@ setInterval(tick, 30000);
 // ----- 가계부 -----
 function tabMoney(t, L) {
   const v = S.mview;
+  const fx = t.curs.length || t.exchanges.length;
   return summaryHtml(t, L) +
-    `<div class="act-row"><button class="btn primary" data-act="addExp">지출 기록</button><button class="btn" data-act="addEx">환전 기록</button></div>` +
-    walletHtml(t, L) +
+    `<div class="act-row"${fx ? '' : ' style="grid-template-columns:1fr"'}><button class="btn primary" data-act="addExp">지출 기록</button>${fx ? '<button class="btn" data-act="addEx">환전 기록</button>' : ''}</div>` +
+    (fx ? walletHtml(t, L) : '') +
     `<div class="seg sub" role="tablist">${[['list', '내역'], ['stats', '통계'], ['settle', '정산']].map(([k, l]) =>
       `<button role="tab" aria-selected="${v === k}" data-act="mview" data-v="${k}">${l}</button>`).join('')}</div>` +
     (v === 'stats' ? statsHtml(t, L) : v === 'settle' ? settleHtml(t, L) : listHtml(t, L));
@@ -726,9 +742,9 @@ function summaryHtml(t, L) {
     ${fx ? `<p class="fx-line">외화로는 ${fx}</p>` : ''}
     ${b ? `<div class="budget"><div class="bar ${over ? 'over' : ''}"><i style="width:${Math.min(100, L.total / b * 100)}%"></i></div>
       <p>${over ? `예산 ${won(b)}보다 ${won(L.total - b)} 더 썼어요` : `예산 ${won(b)} 중 ${won(b - L.total)} 남았어요`}</p></div>` : ''}
-    <dl class="kinds"><div><dt>환전한 돈에서</dt><dd>${won(L.byKind.cash)}</dd></div>
+    ${t.curs.length || t.exchanges.length ? `<dl class="kinds"><div><dt>환전한 돈에서</dt><dd>${won(L.byKind.cash)}</dd></div>
       <div class="k-live"><dt>실시간 결제</dt><dd>${won(L.byKind.live)}</dd></div>
-      <div><dt>원화 결제</dt><dd>${won(L.byKind.home)}</dd></div></dl>
+      <div><dt>원화 결제</dt><dd>${won(L.byKind.home)}</dd></div></dl>` : ''}
     ${L.shortCount ? `<p class="warn">환전한 돈보다 많이 쓴 지출이 ${L.shortCount}건 있어요. 부족한 부분은 가장 최근 환전 환율로 임시 계산했어요. 환전 기록을 추가하면 다시 계산돼요.</p>` : ''}
   </section>`;
 }
@@ -817,12 +833,99 @@ function settleHtml(t, L) {
 }
 
 // ----- 일정 -----
+// ----- 구글 지도 (키는 구글 클라우드에서 flyaway9424.github.io/travelnote/* 주소로 제한) -----
+const GMAPS_KEY = 'AIzaSyDmpVbFAznO5lbJr7ZrGF9zyPP7DWoHfII';
+let gmapsP = null;
+const GM = { box: null, map: null, line: null, pins: [], sig: '', onPick: null };
+window.gm_authFailure = () => toast('지도 키를 쓸 수 없어요. 구글 클라우드의 키 제한 설정을 확인해 주세요.');
+function gmaps() {
+  if (!GMAPS_KEY) return Promise.reject(new Error('no key'));
+  return gmapsP || (gmapsP = new Promise((ok, no) => {
+    window.__gmReady = ok;
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_KEY}&v=weekly&language=ko&loading=async&callback=__gmReady`;
+    s.async = true; s.onerror = () => { gmapsP = null; no(new Error('load')); };
+    document.head.append(s);
+  }));
+}
+// 지도는 한 번만 만들고 화면을 다시 그릴 때마다 옮겨 붙인다 (지도 로드 횟수 = 하루 상한 대상)
+async function gmBox() {
+  await gmaps();
+  if (!GM.map) {
+    await Promise.all([google.maps.importLibrary('maps'), google.maps.importLibrary('core')]);
+    GM.box = document.createElement('div'); GM.box.className = 'gmap';
+    GM.map = new google.maps.Map(GM.box, { center: { lat: 37.5665, lng: 126.978 }, zoom: 12, disableDefaultUI: true, zoomControl: true, clickableIcons: false });
+    GM.map.addListener('click', e => GM.onPick && GM.onPick(e.latLng.lat(), e.latLng.lng()));
+  }
+  return GM.box;
+}
+function gmPin(p) {
+  const o = new google.maps.OverlayView(), el = document.createElement('button');
+  el.type = 'button'; el.className = 'gpin' + (p.cls ? ' ' + p.cls : ''); el.textContent = p.label || '';
+  if (p.title) el.setAttribute('aria-label', p.title);
+  google.maps.OverlayView.preventMapHitsAndGesturesFrom(el);
+  if (p.onClick) el.onclick = p.onClick;
+  o.onAdd = () => o.getPanes().overlayMouseTarget.append(el);
+  o.draw = () => { const q = o.getProjection().fromLatLngToDivPixel(new google.maps.LatLng(p.lat, p.lng)); if (q) { el.style.left = q.x + 'px'; el.style.top = q.y + 'px'; } };
+  o.onRemove = () => el.remove();
+  o.setMap(GM.map);
+  return o;
+}
+function gmShow(points, fit = true) {
+  const sig = JSON.stringify(points.map(p => [p.id, p.lat, p.lng, p.label, p.cls]));
+  if (sig === GM.sig) return; GM.sig = sig;
+  GM.pins.forEach(o => o.setMap(null)); GM.pins = points.map(gmPin);
+  if (GM.line) { GM.line.setMap(null); GM.line = null; }
+  const path = points.map(p => ({ lat: p.lat, lng: p.lng }));
+  if (path.length > 1) {
+    const color = getComputedStyle(document.documentElement).getPropertyValue('--green').trim() || '#1F6F5C';
+    GM.line = new google.maps.Polyline({ map: GM.map, path, strokeOpacity: 0, icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: color, scale: 3 }, offset: '0', repeat: '14px' }] });
+  }
+  if (!fit || !path.length) return;
+  if (path.length === 1) { GM.map.setCenter(path[0]); GM.map.setZoom(15); return; }
+  const b = new google.maps.LatLngBounds(); path.forEach(p => b.extend(p)); GM.map.fitBounds(b, 56);
+}
+function planBias(t) {
+  const pts = t.plans.filter(p => p.lat != null); if (!pts.length) return null;
+  return { center: { lat: pts.reduce((s, p) => s + p.lat, 0) / pts.length, lng: pts.reduce((s, p) => s + p.lng, 0) / pts.length }, radius: 50000 };
+}
+async function planMap(t) {
+  const slot = $('[data-mapslot]'); if (!slot) return;
+  try {
+    const box = await gmBox();
+    if (!slot.isConnected || box.closest('#sheet')) return;
+    box.classList.remove('pick'); slot.replaceChildren(box);
+    GM.onPick = null; GM.map.setOptions({ gestureHandling: 'cooperative' });
+    gmShow(t.plans.filter(p => (p.date || '') === S.mapDay && p.lat != null).sort(planSort).map((p, i) => ({ id: p.id, lat: p.lat, lng: p.lng, label: String(i + 1), title: p.place || p.title,
+      onClick: () => { const el = $(`[data-plan="${p.id}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } })));
+  } catch { if (slot.isConnected) slot.innerHTML = '<p class="hint">지도를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>'; }
+}
 function mapLink(q) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q); }
-function routeLink(places) {
-  const p = places.slice(0, 10);
-  const u = new URL('https://www.google.com/maps/dir/');
-  u.searchParams.set('api', '1'); u.searchParams.set('origin', p[0]); u.searchParams.set('destination', p[p.length - 1]);
-  if (p.length > 2) u.searchParams.set('waypoints', p.slice(1, -1).join('|'));
+const planSort = (a, b) => (a.time || '99').localeCompare(b.time || '99') || a.ts - b.ts;
+// 구글지도에 넘길 장소: 검색으로 고른 곳은 이름+장소ID, 지도에서 찍은 곳은 좌표
+const stopOf = p => ({ q: p.placeId ? (p.place || p.title) : p.lat != null ? `${p.lat},${p.lng}` : p.place, id: p.placeId || '' });
+function routeLink(stops) {
+  // 모두 검색으로 고른 곳이면 이름+장소ID, 하나라도 아니면 좌표(없으면 이름)로 넘긴다
+  const p = stops.slice(0, 10), ids = p.every(x => x.placeId), u = new URL('https://www.google.com/maps/dir/?api=1');
+  const q = x => ids || x.lat == null ? (x.place || x.title) : `${x.lat},${x.lng}`;
+  u.searchParams.set('origin', q(p[0])); u.searchParams.set('destination', q(p[p.length - 1]));
+  if (p.length > 2) u.searchParams.set('waypoints', p.slice(1, -1).map(q).join('|'));
+  if (ids) {
+    u.searchParams.set('origin_place_id', p[0].placeId); u.searchParams.set('destination_place_id', p[p.length - 1].placeId);
+    if (p.length > 2) u.searchParams.set('waypoint_place_ids', p.slice(1, -1).map(x => x.placeId).join('|'));
+  }
+  return u.toString();
+}
+function placeLink(p) {
+  if (p.placeId) return mapLink(p.place || p.title || `${p.lat},${p.lng}`) + '&query_place_id=' + encodeURIComponent(p.placeId);
+  if (p.lat != null) return mapLink(`${p.lat},${p.lng}`);
+  return safeUrl(p.mapUrl) || mapLink(p.place);
+}
+// from이 없으면 구글지도가 현재 위치에서 출발
+function dirLink(from, to) {
+  const u = new URL('https://www.google.com/maps/dir/?api=1'), a = from && stopOf(from), b = stopOf(to);
+  if (a) { u.searchParams.set('origin', a.q); if (a.id) u.searchParams.set('origin_place_id', a.id); }
+  u.searchParams.set('destination', b.q); if (b.id) u.searchParams.set('destination_place_id', b.id);
   u.searchParams.set('travelmode', 'transit');
   return u.toString();
 }
@@ -845,16 +948,24 @@ function tabPlan(t) {
       <span>${n > 0 ? `출발까지 ${n}일 남았어요` : n === 0 ? '오늘 출발해요' : today() <= (t.end || t.start) ? '여행 중이에요' : '다녀온 여행이에요'}</span>
       <span class="muted">${t.tz && t.tz !== 'Asia/Seoul' ? `${esc(tzLabel(t.tz))} ${gapText(t.tz)}` : fmtRange(t)}</span></div>`
     : `<p class="empty">여행 날짜를 <button class="link" data-act="tripSettings">여행 설정</button>에서 정하면 날짜별 일정표가 만들어져요.</p>`;
-  return info + dates.map(d => {
-    const items = t.plans.filter(p => (p.date || '') === d).sort((a, b) => (a.time || '99').localeCompare(b.time || '99') || a.ts - b.ts);
-    const places = items.map(p => (p.place || '').trim()).filter(Boolean);
+  const mapDays = GMAPS_KEY ? dates.filter(d => t.plans.some(p => (p.date || '') === d && p.lat != null)) : [];
+  if (mapDays.length && !mapDays.includes(S.mapDay)) S.mapDay = mapDays.includes(today()) ? today() : mapDays[0];
+  const mapSec = mapDays.length ? `<section class="plan-map">${mapDays.length > 1 ? `<div class="seg">${mapDays.map(d => `<button type="button" data-act="mapDay" data-v="${esc(d)}" aria-pressed="${d === S.mapDay}">${days.indexOf(d) >= 0 ? `${days.indexOf(d) + 1}일차` : esc(fmtShort(d) || '날짜 없음')}</button>`).join('')}</div>` : ''}
+    <div class="gmap-slot" data-mapslot><p class="hint">지도를 불러오는 중…</p></div></section>` : '';
+  return info + mapSec + dates.map(d => {
+    const items = t.plans.filter(p => (p.date || '') === d).sort(planSort);
+    const stops = items.filter(p => p.place || p.lat != null);
+    const nos = new Map(items.filter(p => p.lat != null).map((p, i) => [p.id, i + 1]));
     const idx = days.indexOf(d);
     return `<section class="plan-day"><header><h3>${idx >= 0 ? `${idx + 1}일차` : (d ? '기타 날짜' : '날짜 없음')}<span>${d ? fmtDay(d) : ''}</span></h3>
-      ${places.length > 1 ? `<a href="${esc(routeLink(places))}" target="_blank" rel="noopener">동선·거리 지도로 보기</a>` : ''}</header>
-      ${items.length ? `<ul class="timeline">${items.map(p => `<li><button class="tl-main" data-act="editPlan" data-id="${p.id}">
+      ${stops.length > 1 ? `<a href="${esc(routeLink(stops))}" target="_blank" rel="noopener">동선·거리 지도로 보기</a>` : ''}</header>
+      ${items.length ? `<ul class="timeline">${items.map((p, i) => {
+        const prev = items.slice(0, i).reverse().find(x => x.lat != null), has = p.place || p.mapUrl || p.lat != null;
+        return `<li data-plan="${p.id}"${nos.has(p.id) ? ` data-no="${nos.get(p.id)}"` : ''}><button class="tl-main" data-act="editPlan" data-id="${p.id}">
         ${p.time ? `<span class="tl-time">${esc(p.time)}</span>` : ''}<span class="tl-title">${esc(p.title || p.place || '일정')}</span>
         ${p.memo ? `<span class="tl-memo">${esc(p.memo)}</span>` : ''}</button>
-        ${p.place || p.mapUrl || safeUrl(p.link) ? `<div class="tl-links">${p.place || p.mapUrl ? `<a href="${esc(safeUrl(p.mapUrl) || mapLink(p.place))}" target="_blank" rel="noopener">📍 ${esc(p.place || p.title || '지도에서 보기')}</a>` : ''}${safeUrl(p.link) ? `<a href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener">링크 열기</a>` : ''}</div>` : ''}</li>`).join('')}</ul>` : ''}
+        ${has || safeUrl(p.link) ? `<div class="tl-links">${has ? `<a href="${esc(placeLink(p))}" target="_blank" rel="noopener">📍 ${esc(p.place || p.title || '지도에서 보기')}</a>` : ''}${p.lat != null ? `<a href="${esc(dirLink(prev, p))}" target="_blank" rel="noopener">${prev ? '이전 장소에서 길찾기' : '길찾기'}</a>` : ''}${safeUrl(p.link) ? `<a href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener">링크 열기</a>` : ''}</div>` : ''}</li>`;
+      }).join('')}</ul>` : ''}
       <button class="btn small ghost add-line" data-act="addPlan" data-date="${esc(d)}">일정 추가</button></section>`;
   }).join('') + (dates.length ? '' : `<button class="btn" data-act="addPlan" data-date="">일정 추가</button>`);
 }
@@ -1211,44 +1322,99 @@ function sheetExchange(t, id) {
 function sheetPlan(t, id, date) {
   const old = id ? t.plans.find(p => p.id === id) : null;
   const d = old ? clone(old) : { id: uid('p_'), date: date || defaultDate(t), time: '', title: '', place: '', mapUrl: '', memo: '', link: '', ts: Date.now() };
-  let mapUrl = d.mapUrl || '';
+  let mapUrl = d.mapUrl || '', moved = false;
+  let loc = d.lat != null ? { lat: d.lat, lng: d.lng, placeId: d.placeId || '', addr: d.addr || '' } : null;
   openSheet(sheetHead(old ? '일정 수정' : '일정 추가') +
     `<div class="fld two"><div><label for="p-date">날짜</label><input type="date" id="p-date" value="${esc(d.date)}"></div><div><label for="p-time">시간</label><input type="time" id="p-time" value="${esc(d.time)}"></div></div>
     <div class="fld"><label for="p-title">할 일</label><input id="p-title" value="${esc(d.title)}" placeholder="예: 오사카성 구경" autocomplete="off"></div>
     <div class="fld"><label for="p-place">장소</label>
-    <input id="p-place" value="${esc(d.place)}" placeholder="장소 이름 (또는 구글지도 링크 붙여넣기)" autocomplete="off">
-    <div class="map-btns"><button type="button" class="btn small" data-mapopen>🗺️ 구글지도에서 고르기</button><button type="button" class="btn small" data-mappaste>📋 복사한 링크 붙여넣기</button></div>
-    <div class="map-stat" data-mapstat hidden><span>✅ 지도 링크 연결됨</span><button type="button" class="link" data-unmap>해제</button></div>
-    <p class="hint">① 구글지도에서 장소(내가 저장한 장소도 OK)를 열고 ② <b>공유 → 링크 복사</b> ③ 여기로 돌아와 <b>붙여넣기</b>. 장소 이름을 몰라도 돼요.</p></div>
+    <div class="combo"><input id="p-place" value="${esc(d.place)}" placeholder="${GMAPS_KEY ? '장소 검색 (예: 호주우유공사)' : '장소 이름 (또는 구글지도 링크 붙여넣기)'}" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="p-sug"><ul class="combo-list places" id="p-sug" role="listbox" hidden></ul></div>
+    <div class="map-stat" data-mapstat hidden><span data-mapstat-t></span><button type="button" class="link" data-unmap>해제</button></div>
+    ${GMAPS_KEY ? '<div class="map-btns"><button type="button" class="btn small" data-pickmap>🗺️ 지도에서 직접 찍기</button></div><div data-pickslot></div>' : ''}
+    <p class="hint">검색에 안 나오면 지도에서 직접 찍거나, 구글지도 링크를 붙여넣어도 돼요.</p></div>
     <div class="fld"><label for="p-memo">메모</label><textarea id="p-memo" style="min-height:80px">${esc(d.memo)}</textarea></div>
     <div class="fld"><label for="p-link">링크</label><input id="p-link" type="url" value="${esc(d.link)}" placeholder="https://" autocomplete="off"></div>
     <div class="sheet-foot">${old ? '<button class="btn danger" data-del>삭제</button>' : ''}<button class="btn primary" data-save>${old ? '수정 저장' : '추가하기'}</button></div>`, root => {
     $('[data-save]', root).onclick = () => {
-      const rec = { ...d, date: $('#p-date', root).value, time: $('#p-time', root).value, title: $('#p-title', root).value.trim(), place: $('#p-place', root).value.trim(), mapUrl, memo: $('#p-memo', root).value.trim(), link: $('#p-link', root).value.trim() };
-      if (!rec.title && !rec.place && !rec.mapUrl) { toast('할 일이나 장소를 입력해 주세요.'); $('#p-title', root).focus(); return; }
+      const rec = { ...d, date: $('#p-date', root).value, time: $('#p-time', root).value, title: $('#p-title', root).value.trim(), place: $('#p-place', root).value.trim(), mapUrl,
+        lat: loc ? loc.lat : null, lng: loc ? loc.lng : null, placeId: loc ? loc.placeId : '', addr: loc ? loc.addr : '', memo: $('#p-memo', root).value.trim(), link: $('#p-link', root).value.trim() };
+      if (!rec.title && !rec.place && !rec.mapUrl && !loc) { toast('할 일이나 장소를 입력해 주세요.'); $('#p-title', root).focus(); return; }
       const i = t.plans.findIndex(p => p.id === rec.id);
       if (i >= 0) t.plans[i] = rec; else t.plans.push(rec);
       Store.save(t); closeSheet(); render();
     };
     const del = $('[data-del]', root);
     if (del) del.onclick = () => armConfirm(del, '한 번 더 누르면 삭제', () => { t.plans = t.plans.filter(p => p.id !== d.id); Store.save(t); closeSheet(); render(); });
-    const pl = $('#p-place', root), st = $('[data-mapstat]', root), showMap = () => { st.hidden = !mapUrl; };
+    const pl = $('#p-place', root), st = $('[data-mapstat]', root), sug = $('#p-sug', root);
+    const here = () => loc ? [{ lat: loc.lat, lng: loc.lng, cls: 'here' }] : [];
+    const showMap = () => { st.hidden = !mapUrl && !loc; $('[data-mapstat-t]', root).textContent = loc ? `📍 위치 연결됨${loc.addr ? ' · ' + loc.addr : ''}` : '🔗 지도 링크 연결됨'; };
     const takePlace = v => {
       const r = parsePlaceInput(v);
-      if (r.url) { mapUrl = r.url; if (r.name) pl.value = r.name; else if (/^https?:/.test(pl.value.trim())) pl.value = ''; toast('지도 링크를 연결했어요'); }
+      if (r.url) {
+        mapUrl = r.url; if (r.name) pl.value = r.name; else if (/^https?:/.test(pl.value.trim())) pl.value = '';
+        const m = r.url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) || r.url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (m) { loc = { lat: +m[1], lng: +m[2], placeId: '', addr: '' }; if (moved) gmShow(here()); }
+        toast(m ? '지도 링크에서 위치를 찾았어요' : '지도 링크를 연결했어요');
+      }
       showMap();
     };
     showMap();
     pl.addEventListener('paste', e => { const txt = (e.clipboardData || window.clipboardData).getData('text'); if (/https?:\/\//.test(txt)) { e.preventDefault(); takePlace(txt); } });
     pl.addEventListener('change', () => { if (/https?:\/\//.test(pl.value)) takePlace(pl.value); });
-    $('[data-mappaste]', root).onclick = async () => {
-      try { const txt = await navigator.clipboard.readText(); if (/https?:\/\//.test(txt)) takePlace(txt); else toast('복사한 지도 링크가 없어요. 구글지도에서 공유 → 링크 복사를 먼저 해 주세요.'); }
-      catch { toast('입력칸을 길게 눌러 붙여넣어 주세요.'); pl.focus(); }
+    $('[data-unmap]', root).onclick = () => { mapUrl = ''; loc = null; showMap(); if (moved) gmShow([]); };
+    // 장소 검색 (구글 장소 자동완성)
+    let preds = [], tok = null, seq = 0, tm;
+    const closeSug = () => { sug.hidden = true; pl.setAttribute('aria-expanded', 'false'); };
+    const showSug = html => { sug.innerHTML = html; sug.hidden = false; pl.setAttribute('aria-expanded', 'true'); };
+    pl.addEventListener('input', () => {
+      clearTimeout(tm); const q = pl.value.trim();
+      if (!GMAPS_KEY || q.length < 2 || /^https?:/.test(q)) { closeSug(); return; }
+      tm = setTimeout(async () => {
+        const my = ++seq;
+        try {
+          await gmaps(); const { AutocompleteSuggestion, AutocompleteSessionToken } = await google.maps.importLibrary('places');
+          tok = tok || new AutocompleteSessionToken();
+          const bias = planBias(t);
+          const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({ input: q, sessionToken: tok, language: 'ko', ...(bias ? { locationBias: bias } : {}) });
+          if (my !== seq || document.activeElement !== pl) return;
+          preds = suggestions.map(s => s.placePrediction).filter(Boolean).slice(0, 5);
+          showSug(preds.map((p, i) => `<li role="option" data-i="${i}"><span>${esc(p.mainText ? p.mainText.text : p.text.text)}</span><small>${esc(p.secondaryText ? p.secondaryText.text : '')}</small></li>`).join('')
+            || '<li class="combo-none">검색 결과가 없어요. 영어 이름으로 찾거나 지도에서 직접 찍어 보세요.</li>');
+        } catch { if (my === seq && document.activeElement === pl) showSug('<li class="combo-none">지금은 장소 검색을 쓸 수 없어요. 지도에서 직접 찍어 주세요.</li>'); }
+      }, 350);
+    });
+    pl.addEventListener('blur', closeSug);
+    pl.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !sug.hidden) { e.preventDefault(); closeSug(); }
+      if (e.key === 'Enter' && !e.isComposing && !sug.hidden) { const li = $('[data-i]', sug); if (li) { e.preventDefault(); li.click(); } }
+    });
+    sug.onmousedown = e => e.preventDefault();
+    sug.onclick = async e => {
+      const li = e.target.closest('[data-i]'); if (!li) return;
+      const pr = preds[+li.dataset.i]; clearTimeout(tm); seq++; closeSug();
+      pl.value = pr.mainText ? pr.mainText.text : pr.text.text;
+      try {
+        const place = pr.toPlace(); await place.fetchFields({ fields: ['location', 'formattedAddress'] });
+        loc = { lat: place.location.lat(), lng: place.location.lng(), placeId: place.id, addr: place.formattedAddress || '' };
+        mapUrl = ''; tok = null; showMap(); if (moved) gmShow(here());
+      } catch { toast('위치를 가져오지 못했어요. 다시 골라 주세요.'); }
     };
-    $('[data-mapopen]', root).onclick = () => window.open(pl.value.trim() && !/^https?:/.test(pl.value.trim()) ? mapLink(pl.value.trim()) : 'https://www.google.com/maps', '_blank');
-    $('[data-unmap]', root).onclick = () => { mapUrl = ''; showMap(); };
+    // 지도에서 직접 찍기 (일정 탭의 지도를 잠시 빌려 온다)
+    const pick = $('[data-pickmap]', root);
+    if (pick) pick.onclick = async () => {
+      const slot = $('[data-pickslot]', root); pick.hidden = true; slot.innerHTML = '<p class="hint">지도를 불러오는 중…</p>';
+      try {
+        const box = await gmBox(); if (!slot.isConnected) return;
+        moved = true; box.classList.add('pick'); slot.replaceChildren(box);
+        slot.insertAdjacentHTML('beforeend', '<p class="hint">원하는 위치를 누르면 핀이 꽂혀요. 장소 이름은 위 칸에 적어 주세요.</p>');
+        GM.map.setOptions({ gestureHandling: 'greedy' });
+        const b = planBias(t); gmShow(here());
+        if (!loc && b) { GM.map.setCenter(b.center); GM.map.setZoom(13); }
+        GM.onPick = (lat, lng) => { loc = { lat, lng, placeId: '', addr: '' }; gmShow(here(), false); showMap(); };
+      } catch { slot.innerHTML = '<p class="hint">지도를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>'; }
+    };
     if (!old) $('#p-title', root).focus();
-  });
+  }, () => { GM.onPick = null; if (moved) render(); });
 }
 
 // ----- 노트 / 스크랩 -----
@@ -1333,7 +1499,7 @@ function sheetTrip(t) {
     const chips = $('[data-curs]', root), tz = $('#t-tz', root);
     const drawTz = () => { const list = TZS.some(z => z[0] === d.tz) ? TZS : [...TZS, [d.tz, d.tz]]; tz.innerHTML = list.map(([v, l]) => `<option value="${esc(v)}" ${v === d.tz ? 'selected' : ''}>${esc(l)}</option>`).join(''); };
     const curx = $('#t-curx', root), list = $('#t-curlist', root);
-    const drawCurs = () => { chips.innerHTML = d.curs.map(c => `<button type="button" data-v="${esc(c)}" aria-pressed="true" aria-label="${esc(ci(c).name)} 빼기">${esc(ci(c).name)}<span aria-hidden="true">✕</span></button>`).join('') || '<span class="hint">아래에서 통화를 골라 주세요</span>'; };
+    const drawCurs = () => { chips.innerHTML = d.curs.map(c => `<button type="button" data-v="${esc(c)}" aria-pressed="true" aria-label="${esc(ci(c).name)} 빼기">${esc(ci(c).name)}<span aria-hidden="true">✕</span></button>`).join('') || '<span class="hint">국내 여행이면 비워 두세요. 원화는 항상 쓸 수 있어요.</span>'; };
     const drawList = () => {
       const q = curx.value.trim().toLowerCase(), code = q.toUpperCase();
       const hit = [...new Set([...base, ...d.curs])].filter(c => !q || [c, ci(c).name, tzLabel(ci(c).tz || '')].join(' ').toLowerCase().includes(q));
@@ -1448,6 +1614,7 @@ const ACT = {
   editEx: el => sheetExchange(cur(), el.dataset.id),
   addPlan: el => sheetPlan(cur(), null, el.dataset.date),
   editPlan: el => sheetPlan(cur(), el.dataset.id),
+  mapDay: el => { S.mapDay = el.dataset.v; render(); },
   addNote: () => sheetNote(cur(), null, false),
   addLink: () => sheetNote(cur(), null, true),
   editNote: el => sheetNote(cur(), el.dataset.id),
