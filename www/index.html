@@ -349,6 +349,27 @@ body{background:radial-gradient(900px 360px at 50% -140px,var(--green-soft),tran
 .login{display:grid;gap:2px;max-width:420px}
 .login-btns{display:grid;gap:8px;margin-top:18px}
 .login .hint{margin-top:10px}
+.day-bar{position:sticky;top:calc(env(safe-area-inset-top,0px) + var(--head-h,64px));z-index:4;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;
+  margin:14px -16px 6px;padding:6px 16px 10px;background:var(--paper);box-shadow:0 10px 12px -14px rgba(0,0,0,.35)}
+.day-bar::-webkit-scrollbar{display:none}
+.day-bar button{flex:0 0 auto;min-width:64px;min-height:48px;display:grid;justify-items:center;align-content:center;gap:1px;padding:4px 12px;
+  border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink-2);line-height:1.25}
+.day-bar b{display:flex;align-items:center;gap:5px;color:var(--ink);font-size:.95rem}
+.day-bar small{font-size:.72rem}
+.dc-dot{width:7px;height:7px;border-radius:50%;background:var(--dc)}
+.day-bar button[aria-pressed="true"]{background:var(--dc);border-color:var(--dc);color:#fff}
+.day-bar button[aria-pressed="true"] b{color:#fff}
+.day-bar button[aria-pressed="true"] .dc-dot{background:#fff}
+.plan-day .tl-main{border-left-color:var(--dc,var(--green))}
+.timeline li::before{border-color:var(--dc,var(--green))}
+.timeline li[data-no]::before{background:var(--dc,var(--green));color:#fff}
+.pd-acts{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;justify-content:flex-end}
+.timeline li.mv .tl-main{padding-right:92px}
+.tl-mv{position:absolute;top:12px;right:8px;display:flex;gap:4px}
+.tl-mv button{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font-size:.8rem;color:var(--ink)}
+.tl-mv button:disabled{opacity:.3}
+.tsel{display:flex;gap:6px}
+.tsel select{flex:1 1 0;min-width:0}
 </style>
 </head>
 <body>
@@ -677,7 +698,12 @@ function render() {
   nav.firstElementChild.innerHTML = [['plan', '일정'], ['money', '가계부'], ['notes', '노트'], ['check', '체크리스트'], ['diary', '일기']]
     .map(([k, l]) => `<button data-act="tab" data-v="${k}" ${S.tab === k ? 'aria-current="page"' : ''}>${TABI[k]}<span>${l}</span></button>`).join('');
   tick();
-  if (S.tab === 'plan') planMap(t);
+  const th = $('.trip-head'); if (th) document.documentElement.style.setProperty('--head-h', th.offsetHeight + 'px');
+  if (S.tab === 'plan') {
+    planMap(t);
+    const bar = $('.day-bar'), on = bar && $('[aria-pressed="true"]', bar);
+    if (on) bar.scrollLeft = on.offsetLeft - (bar.clientWidth - on.offsetWidth) / 2;
+  }
 }
 
 function homeHtml() {
@@ -849,6 +875,7 @@ async function gmBox() {
 function gmPin(p) {
   const o = new google.maps.OverlayView(), el = document.createElement('button');
   el.type = 'button'; el.className = 'gpin' + (p.cls ? ' ' + p.cls : ''); el.textContent = p.label || '';
+  if (p.color) { el.style.background = p.color; el.style.color = '#fff'; }
   if (p.title) el.setAttribute('aria-label', p.title);
   google.maps.OverlayView.preventMapHitsAndGesturesFrom(el);
   if (p.onClick) el.onclick = p.onClick;
@@ -859,14 +886,15 @@ function gmPin(p) {
   return o;
 }
 function gmShow(points, fit = true) {
-  const sig = JSON.stringify(points.map(p => [p.id, p.lat, p.lng, p.label, p.cls]));
+  const sig = JSON.stringify(points.map(p => [p.id, p.lat, p.lng, p.label, p.cls, p.color]));
   if (sig === GM.sig) return; GM.sig = sig;
   GM.pins.forEach(o => o.setMap(null)); GM.pins = points.map(gmPin);
-  if (GM.line) { GM.line.setMap(null); GM.line = null; }
-  const ll = p => ({ lat: p.lat, lng: p.lng }), all = points.map(ll), path = points.filter(p => !p.free).map(ll);
-  if (path.length > 1) {
-    const color = getComputedStyle(document.documentElement).getPropertyValue('--green').trim() || '#1F6F5C';
-    GM.line = new google.maps.Polyline({ map: GM.map, path, strokeOpacity: 0, icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: color, scale: 3 }, offset: '0', repeat: '14px' }] });
+  (GM.lines || []).forEach(l => l.setMap(null)); GM.lines = [];
+  const ll = p => ({ lat: p.lat, lng: p.lng }), all = points.map(ll), groups = new Map();
+  for (const p of points) if (!p.free) { const k = p.grp || ''; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); }
+  for (const g of groups.values()) if (g.length > 1) {
+    const color = g[0].color || getComputedStyle(document.documentElement).getPropertyValue('--green').trim() || '#1F6F5C';
+    GM.lines.push(new google.maps.Polyline({ map: GM.map, path: g.map(ll), strokeOpacity: 0, icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, strokeColor: color, scale: 3 }, offset: '0', repeat: '14px' }] }));
   }
   if (!fit || !all.length) return;
   if (all.length === 1) { GM.map.setCenter(all[0]); GM.map.setZoom(15); return; }
@@ -884,14 +912,38 @@ async function planMap(t) {
     box.classList.remove('pick'); slot.replaceChildren(box);
     GM.onPick = null; GM.map.setOptions({ gestureHandling: 'cooperative' });
     const go = sel => () => { const el = $(sel); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+    const dates = planDates(t), scope = S.pday === 'all' ? dates : [S.pday];
     gmShow([
-      ...stayOn(t, S.mapDay).filter(s => s.lat != null).map(s => ({ id: s.id, lat: s.lat, lng: s.lng, label: '🏨', cls: 'stay', free: true, title: s.name, onClick: go(`[data-book="${s.id}"]`) })),
-      ...t.plans.filter(p => (p.date || '') === S.mapDay && p.lat != null).sort(planSort).map((p, i) => ({ id: p.id, lat: p.lat, lng: p.lng, label: String(i + 1), title: p.place || p.title, onClick: go(`[data-plan="${p.id}"]`) })),
+      ...t.stays.filter(s => s.lat != null && scope.some(d => stayOn(t, d).includes(s))).map(s => ({ id: s.id, lat: s.lat, lng: s.lng, label: '🏨', cls: 'stay', free: true, title: s.name, onClick: go(`[data-book="${s.id}"]`) })),
+      ...scope.flatMap(d => dayPlans(t, d).filter(p => p.lat != null).map((p, i) => ({ id: p.id, lat: p.lat, lng: p.lng, label: String(i + 1), grp: d, color: dayColor(dates, d), title: p.place || p.title, onClick: go(`[data-plan="${p.id}"]`) }))),
     ]);
   } catch { if (slot.isConnected) slot.innerHTML = '<p class="hint">지도를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>'; }
 }
 function mapLink(q) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q); }
-const planSort = (a, b) => (a.time || '99').localeCompare(b.time || '99') || a.ts - b.ts;
+const legacySort = (a, b) => (a.time || '99').localeCompare(b.time || '99') || a.ts - b.ts;
+// 하루 일정 순서: 모든 일정에 순번(ord)이 있으면 순번대로, 아니면 예전 방식(시간 → 추가한 순서)
+function dayPlans(t, d) {
+  const xs = t.plans.filter(p => (p.date || '') === d);
+  return xs.sort(xs.every(p => typeof p.ord === 'number') ? (a, b) => a.ord - b.ord || a.ts - b.ts : legacySort);
+}
+// 저장할 때 자리 잡기: 날짜·시간이 그대로면 제자리, 시간이 있으면 시간 순서에 맞는 자리, 없으면 맨 뒤
+function placePlan(t, rec, old) {
+  const cur = dayPlans(t, rec.date), list = cur.filter(p => p.id !== rec.id);
+  let at = list.length;
+  if (old && old.date === rec.date && old.time === rec.time) { const k = cur.findIndex(p => p.id === rec.id); if (k >= 0) at = k; }
+  else if (rec.time) {
+    const k = list.findIndex(p => p.time && p.time > rec.time);
+    if (k >= 0) at = k; else { let j = -1; list.forEach((p, n) => { if (p.time && p.time <= rec.time) j = n; }); if (j >= 0) at = j + 1; }
+  }
+  list.splice(at, 0, rec); list.forEach((p, n) => { p.ord = n; });
+}
+const DAYC = ['#1F6F5C', '#C0612B', '#7A4FB0', '#2B8A99', '#B23A72', '#8A6A1F', '#4F7A28'];
+const dayColor = (dates, d) => DAYC[Math.max(0, dates.indexOf(d)) % DAYC.length];
+// 일정 탭의 날짜들: 여행 날짜 + 일정·항공편·숙소 날짜 ('날짜 없음'은 맨 뒤)
+function planDates(t) {
+  return [...new Set([...tripDays(t), ...t.plans.map(p => p.date || ''), ...[...t.flights.map(f => f.date), ...t.stays.flatMap(s => [s.inDate, s.outDate])].filter(Boolean)])]
+    .sort((a, b) => (a === '') - (b === '') || a.localeCompare(b));
+}
 // 구글지도에 넘길 장소: 검색으로 고른 곳은 이름+장소ID, 지도에서 찍은 곳은 좌표
 const stopOf = p => ({ q: p.placeId ? (p.place || p.title || p.name) : p.lat != null ? `${p.lat},${p.lng}` : (p.place || p.name), id: p.placeId || '' });
 function routeLink(stops) {
@@ -947,8 +999,8 @@ function bookHtml(t) {
     <div class="book-add"><button class="btn small ghost" data-act="addFlight">✈️ 항공편 추가</button><button class="btn small ghost" data-act="addStay">🏨 숙소 추가</button></div></section>`;
 }
 function tabPlan(t) {
-  const days = tripDays(t);
-  const dates = [...new Set([...days, ...t.plans.map(p => p.date || ''), ...[...t.flights.map(f => f.date), ...t.stays.flatMap(s => [s.inDate, s.outDate])].filter(Boolean)])].sort();
+  const days = tripDays(t), dates = planDates(t);
+  if (S.pday !== 'all' && !dates.includes(S.pday)) S.pday = dates.includes(today()) ? today() : (days[0] || dates[0] || 'all');
   const n = t.start ? daysBetween(today(), t.start) : null;
   const now = today() + ' ' + new Date().toTimeString().slice(0, 5);
   const nf = t.flights.filter(f => f.date && `${f.date} ${f.time || '23:59'}` >= now).sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))[0];
@@ -957,31 +1009,44 @@ function tabPlan(t) {
       <span class="muted">${t.tz && t.tz !== 'Asia/Seoul' ? `${esc(tzLabel(t.tz))} ${gapText(t.tz)}` : fmtRange(t)}</span>
       ${nf ? `<span class="muted">✈️ 다음 비행기 ${esc(fmtShort(nf.date))} ${esc(nf.time)}${nf.no ? ` ${esc(nf.no)}` : ''}</span>` : ''}</div>`
     : `<p class="empty">여행 날짜를 <button class="link" data-act="tripSettings">여행 설정</button>에서 정하면 날짜별 일정표가 만들어져요.</p>`;
-  const mapDays = GMAPS_KEY ? dates.filter(d => t.plans.some(p => (p.date || '') === d && p.lat != null) || stayOn(t, d).some(s => s.lat != null)) : [];
-  if (mapDays.length && !mapDays.includes(S.mapDay)) S.mapDay = mapDays.includes(today()) ? today() : mapDays[0];
-  const mapSec = mapDays.length ? `<section class="plan-map">${mapDays.length > 1 ? `<div class="seg">${mapDays.map(d => `<button type="button" data-act="mapDay" data-v="${esc(d)}" aria-pressed="${d === S.mapDay}">${days.indexOf(d) >= 0 ? `${days.indexOf(d) + 1}일차` : esc(fmtShort(d) || '날짜 없음')}</button>`).join('')}</div>` : ''}
-    <div class="gmap-slot" data-mapslot><p class="hint">지도를 불러오는 중…</p></div></section>` : '';
-  return info + bookHtml(t) + mapSec + dates.map(d => {
-    const items = t.plans.filter(p => (p.date || '') === d).sort(planSort);
+  const label = d => { const i = days.indexOf(d); return i >= 0 ? `${i + 1}일` : d ? '기타' : '미정'; };
+  const bar = dates.length ? `<div data-daytop></div><nav class="day-bar" aria-label="날짜 고르기">
+    <button type="button" data-act="pday" data-v="all" aria-pressed="${S.pday === 'all'}" style="--dc:#34433E"><b>전체</b><small>${dates.length}일</small></button>
+    ${dates.map(d => `<button type="button" data-act="pday" data-v="${esc(d)}" aria-pressed="${S.pday === d}" style="--dc:${dayColor(dates, d)}"><b><i class="dc-dot" aria-hidden="true"></i>${label(d)}</b><small>${d ? `${esc(fmtShort(d))} ${WD[pd(d).getDay()]}` : '날짜 없음'}</small></button>`).join('')}</nav>` : '';
+  const scope = S.pday === 'all' ? dates : dates.filter(d => d === S.pday);
+  const hasMap = GMAPS_KEY && scope.some(d => t.plans.some(p => (p.date || '') === d && p.lat != null) || stayOn(t, d).some(s => s.lat != null));
+  const mapSec = hasMap ? `<section class="plan-map"><div class="gmap-slot" data-mapslot><p class="hint">지도를 불러오는 중…</p></div></section>` : '';
+  return info + bookHtml(t) + bar + mapSec + scope.map(d => {
+    const items = dayPlans(t, d);
     const stops = items.filter(p => p.place || p.lat != null);
     const nos = new Map(items.filter(p => p.lat != null).map((p, i) => [p.id, i + 1]));
-    const idx = days.indexOf(d);
+    const idx = days.indexOf(d), mv = S.reorder === d;
     const planRow = (p, i) => {
       const prev = items.slice(0, i).reverse().find(x => x.lat != null), has = p.place || p.mapUrl || p.lat != null;
-      return `<li data-plan="${p.id}"${nos.has(p.id) ? ` data-no="${nos.get(p.id)}"` : ''}><button class="tl-main" data-act="editPlan" data-id="${p.id}">
+      return `<li data-plan="${p.id}"${nos.has(p.id) ? ` data-no="${nos.get(p.id)}"` : ''}${mv ? ' class="mv"' : ''}><button class="tl-main" data-act="editPlan" data-id="${p.id}">
         ${p.time ? `<span class="tl-time">${esc(p.time)}</span>` : ''}<span class="tl-title">${esc(p.title || p.place || '일정')}</span>
         ${p.memo ? `<span class="tl-memo">${esc(p.memo)}</span>` : ''}</button>
+        ${mv ? `<div class="tl-mv"><button type="button" data-act="mvPlan" data-id="${p.id}" data-dir="-1" aria-label="위로"${i === 0 ? ' disabled' : ''}>▲</button><button type="button" data-act="mvPlan" data-id="${p.id}" data-dir="1" aria-label="아래로"${i === items.length - 1 ? ' disabled' : ''}>▼</button></div>` : ''}
         ${has || safeUrl(p.link) ? `<div class="tl-links">${has ? `<a href="${esc(placeLink(p))}" target="_blank" rel="noopener">📍 ${esc(p.place || p.title || '지도에서 보기')}</a>` : ''}${p.lat != null ? `<a href="${esc(dirLink(null, p))}" target="_blank" rel="noopener">길찾기</a>${prev ? `<a class="sub" href="${esc(dirLink(prev, p))}" target="_blank" rel="noopener">이전 장소에서</a>` : ''}` : ''}${safeUrl(p.link) ? `<a href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener">링크 열기</a>` : ''}</div>` : ''}</li>`;
     };
-    const ev = (k, id, act, time, title, sub) => ({ k, html: `<li class="ev"><button class="tl-main" data-act="${act}" data-id="${id}">${time ? `<span class="tl-time">${esc(time)}</span>` : ''}<span class="tl-title">${esc(title)}</span>${sub ? `<span class="tl-memo">${esc(sub)}</span>` : ''}</button></li>` });
-    // 시간 없는 체크아웃은 하루 맨 앞, 체크인은 맨 뒤
-    const rows = [...items.map((p, i) => ({ k: p.time || '99', html: planRow(p, i) })),
-      ...t.flights.filter(f => f.date === d).map(f => ev(f.time || '99:97', f.id, 'editFlight', f.time, `✈️ ${flightTitle(f)}`, f.arrTime ? `${f.arrTime} 도착` : '')),
-      ...t.stays.filter(s => s.outDate === d).map(s => ev(s.outTime || '00:00', s.id, 'editStay', s.outTime, `🏨 체크아웃 · ${s.name || '숙소'}`, '')),
-      ...t.stays.filter(s => s.inDate === d).map(s => ev(s.inTime || '99:98', s.id, 'editStay', s.inTime, `🏨 체크인 · ${s.name || '숙소'}`, ''))].sort((a, b) => a.k.localeCompare(b.k));
+    const ev = (time, edge, id, act, title, sub) => ({ time, edge, html: `<li class="ev"><button class="tl-main" data-act="${act}" data-id="${id}">${time ? `<span class="tl-time">${esc(time)}</span>` : ''}<span class="tl-title">${esc(title)}</span>${sub ? `<span class="tl-memo">${esc(sub)}</span>` : ''}</button></li>` });
+    // 항공편·체크인/아웃은 시간 있는 일정 사이 제자리에 끼운다 (시간 없는 체크아웃은 맨 앞, 체크인은 맨 뒤)
+    const evs = [...t.flights.filter(f => f.date === d).map(f => ev(f.time, '', f.id, 'editFlight', `✈️ ${flightTitle(f)}`, f.arrTime ? `${f.arrTime} 도착` : '')),
+      ...t.stays.filter(s => s.outDate === d).map(s => ev(s.outTime, 'first', s.id, 'editStay', `🏨 체크아웃 · ${s.name || '숙소'}`, '')),
+      ...t.stays.filter(s => s.inDate === d).map(s => ev(s.inTime, 'last', s.id, 'editStay', `🏨 체크인 · ${s.name || '숙소'}`, ''))].sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
+    const rows = items.map((p, i) => ({ time: p.time, html: planRow(p, i) }));
+    for (const e of evs) {
+      let i;
+      if (!e.time) i = e.edge === 'first' ? 0 : rows.length;
+      else {
+        i = rows.findIndex(r => r.time && r.time > e.time);
+        if (i < 0) { let j = -1; rows.forEach((r, k) => { if (r.time && r.time <= e.time) j = k; }); i = j >= 0 ? j + 1 : e.time < '12:00' ? 0 : rows.length; }
+      }
+      rows.splice(i, 0, { time: e.time, html: e.html });
+    }
     const night = stayOn(t, d).find(s => s.lat != null && d < (s.outDate || s.inDate));
-    return `<section class="plan-day"><header><h3>${idx >= 0 ? `${idx + 1}일차` : (d ? '기타 날짜' : '날짜 없음')}<span>${d ? fmtDay(d) : ''}</span></h3>
-      ${stops.length > 1 ? `<a href="${esc(routeLink(stops))}" target="_blank" rel="noopener">동선·거리 지도로 보기</a>` : ''}</header>
+    return `<section class="plan-day" style="--dc:${dayColor(dates, d)}"><header><h3>${idx >= 0 ? `${idx + 1}일차` : (d ? '기타 날짜' : '날짜 없음')}<span>${d ? fmtDay(d) : ''}</span></h3>
+      <div class="pd-acts">${items.length > 1 ? `<button class="link" data-act="reorder" data-date="${esc(d)}">${mv ? '완료' : '순서 바꾸기'}</button>` : ''}${stops.length > 1 ? `<a href="${esc(routeLink(stops))}" target="_blank" rel="noopener">동선·거리 지도로 보기</a>` : ''}</div></header>
       ${rows.length ? `<ul class="timeline">${rows.map(r => r.html).join('')}</ul>` : ''}
       <div class="day-foot"><button class="btn small ghost add-line" data-act="addPlan" data-date="${esc(d)}">일정 추가</button>${night ? `<a href="${esc(dirLink(null, night))}" target="_blank" rel="noopener">🏨 숙소로 길찾기</a>` : ''}</div></section>`;
   }).join('') + (dates.length ? '' : `<button class="btn" data-act="addPlan" data-date="">일정 추가</button>`);
@@ -1336,6 +1401,21 @@ function sheetExchange(t, id) {
 }
 
 // ----- 일정 -----
+// 시간 고르기: 24시간제, 5분 단위. 고른 값은 숨은 칸(id)에 'HH:MM'으로 들어간다
+function timeSel(id, v) {
+  const [h, m] = (v || '').split(':');
+  const hs = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+  const ms = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+  if (m && !ms.includes(m)) { ms.push(m); ms.sort(); }
+  return `<div class="tsel"><select id="${id}-h" data-tsel="${id}" data-part="h" aria-label="시"><option value="">시간 없음</option>${hs.map(x => `<option value="${x}"${x === h ? ' selected' : ''}>${x}시</option>`).join('')}</select>
+    <select id="${id}-m" data-tsel="${id}" data-part="m" aria-label="분"${h ? '' : ' disabled'}>${ms.map(x => `<option value="${x}"${x === (m || '00') ? ' selected' : ''}>${x}분</option>`).join('')}</select>
+    <input type="hidden" id="${id}" value="${esc(v || '')}"></div>`;
+}
+document.addEventListener('change', e => {
+  const s = e.target.dataset && e.target.dataset.tsel; if (!s) return;
+  const box = e.target.parentNode, h = $('[data-part=h]', box), m = $('[data-part=m]', box);
+  m.disabled = !h.value; $('#' + s, box).value = h.value ? `${h.value}:${m.value}` : '';
+});
 // 장소 검색 (구글 장소 자동완성): 고르면 onPick({ lat, lng, placeId, addr })
 function bindPlaceSearch(t, pl, sug, onPick) {
   let preds = [], tok = null, seq = 0, tm;
@@ -1380,7 +1460,7 @@ function sheetPlan(t, id, date) {
   let mapUrl = d.mapUrl || '', moved = false;
   let loc = d.lat != null ? { lat: d.lat, lng: d.lng, placeId: d.placeId || '', addr: d.addr || '' } : null;
   openSheet(sheetHead(old ? '일정 수정' : '일정 추가') +
-    `<div class="fld two"><div><label for="p-date">날짜</label><input type="date" id="p-date" value="${esc(d.date)}"></div><div><label for="p-time">시간</label><input type="time" id="p-time" value="${esc(d.time)}"></div></div>
+    `<div class="fld two"><div><label for="p-date">날짜</label><input type="date" id="p-date" value="${esc(d.date)}"></div><div><label for="p-time-h">시간</label>${timeSel('p-time', d.time)}</div></div>
     <div class="fld"><label for="p-title">할 일</label><input id="p-title" value="${esc(d.title)}" placeholder="예: 오사카성 구경" autocomplete="off"></div>
     <div class="fld"><label for="p-place">장소</label>
     <div class="combo"><input id="p-place" value="${esc(d.place)}" placeholder="${GMAPS_KEY ? '장소 검색 (예: 호주우유공사)' : '장소 이름 (또는 구글지도 링크 붙여넣기)'}" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="p-sug"><ul class="combo-list places" id="p-sug" role="listbox" hidden></ul></div>
@@ -1394,6 +1474,7 @@ function sheetPlan(t, id, date) {
       const rec = { ...d, date: $('#p-date', root).value, time: $('#p-time', root).value, title: $('#p-title', root).value.trim(), place: $('#p-place', root).value.trim(), mapUrl,
         lat: loc ? loc.lat : null, lng: loc ? loc.lng : null, placeId: loc ? loc.placeId : '', addr: loc ? loc.addr : '', memo: $('#p-memo', root).value.trim(), link: $('#p-link', root).value.trim() };
       if (!rec.title && !rec.place && !rec.mapUrl && !loc) { toast('할 일이나 장소를 입력해 주세요.'); $('#p-title', root).focus(); return; }
+      placePlan(t, rec, old);
       const i = t.plans.findIndex(p => p.id === rec.id);
       if (i >= 0) t.plans[i] = rec; else t.plans.push(rec);
       Store.save(t); closeSheet(); render();
@@ -1444,8 +1525,8 @@ function sheetFlight(t, id) {
   const fresh = []; let saved = false;
   openSheet(sheetHead(old ? '항공편 수정' : '항공편 추가') +
     `<div class="fld two"><div><label for="f-from">출발 공항</label><input id="f-from" value="${esc(d.from)}" placeholder="예: 인천" autocomplete="off"></div><div><label for="f-to">도착 공항</label><input id="f-to" value="${esc(d.to)}" placeholder="예: 홍콩" autocomplete="off"></div></div>
-    <div class="fld two"><div><label for="f-date">출발 날짜</label><input type="date" id="f-date" value="${esc(d.date)}"></div><div><label for="f-time">출발 시간</label><input type="time" id="f-time" value="${esc(d.time)}"></div></div>
-    <div class="fld two"><div><label for="f-adate">도착 날짜</label><input type="date" id="f-adate" value="${esc(d.arrDate || d.date)}"></div><div><label for="f-atime">도착 시간 (현지)</label><input type="time" id="f-atime" value="${esc(d.arrTime)}"></div></div>
+    <div class="fld two"><div><label for="f-date">출발 날짜</label><input type="date" id="f-date" value="${esc(d.date)}"></div><div><label for="f-time-h">출발 시간</label>${timeSel('f-time', d.time)}</div></div>
+    <div class="fld two"><div><label for="f-adate">도착 날짜</label><input type="date" id="f-adate" value="${esc(d.arrDate || d.date)}"></div><div><label for="f-atime-h">도착 시간 (현지)</label>${timeSel('f-atime', d.arrTime)}</div></div>
     <div class="fld two"><div><label for="f-no">편명</label><input id="f-no" value="${esc(d.no)}" placeholder="예: CX411" autocomplete="off" autocapitalize="characters"></div><div><label for="f-pnr">예약번호</label><input id="f-pnr" value="${esc(d.pnr)}" autocomplete="off" autocapitalize="characters"></div></div>
     <div class="fld"><label for="f-memo">메모</label><textarea id="f-memo" style="min-height:80px" placeholder="예: 좌석 32A, 위탁 수하물 23kg">${esc(d.memo)}</textarea></div>` +
     attachField('e-티켓 (사진·PDF)') +
@@ -1484,8 +1565,8 @@ function sheetStay(t, id) {
     `<div class="fld"><label for="s-name">숙소</label>
     <div class="combo"><input id="s-name" value="${esc(d.name)}" placeholder="${GMAPS_KEY ? '숙소 이름 검색' : '숙소 이름'}" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="s-sug"><ul class="combo-list places" id="s-sug" role="listbox" hidden></ul></div>
     <div class="map-stat" data-mapstat hidden><span data-mapstat-t></span><button type="button" class="link" data-unmap>해제</button></div></div>
-    <div class="fld two"><div><label for="s-in">체크인</label><input type="date" id="s-in" value="${esc(d.inDate)}"></div><div><label for="s-intime">시간</label><input type="time" id="s-intime" value="${esc(d.inTime)}"></div></div>
-    <div class="fld two"><div><label for="s-out">체크아웃</label><input type="date" id="s-out" value="${esc(d.outDate)}"></div><div><label for="s-outtime">시간</label><input type="time" id="s-outtime" value="${esc(d.outTime)}"></div></div>
+    <div class="fld two"><div><label for="s-in">체크인</label><input type="date" id="s-in" value="${esc(d.inDate)}"></div><div><label for="s-intime-h">시간</label>${timeSel('s-intime', d.inTime)}</div></div>
+    <div class="fld two"><div><label for="s-out">체크아웃</label><input type="date" id="s-out" value="${esc(d.outDate)}"></div><div><label for="s-outtime-h">시간</label>${timeSel('s-outtime', d.outTime)}</div></div>
     <div class="fld"><label for="s-pnr">예약번호</label><input id="s-pnr" value="${esc(d.pnr)}" autocomplete="off"></div>
     <div class="fld"><label for="s-memo">메모</label><textarea id="s-memo" style="min-height:80px" placeholder="예: 조식 포함, 와이파이 비밀번호">${esc(d.memo)}</textarea></div>` +
     attachField('예약 확인서 (사진·PDF)') +
@@ -1714,7 +1795,20 @@ const ACT = {
   editEx: el => sheetExchange(cur(), el.dataset.id),
   addPlan: el => sheetPlan(cur(), null, el.dataset.date),
   editPlan: el => sheetPlan(cur(), el.dataset.id),
-  mapDay: el => { S.mapDay = el.dataset.v; render(); },
+  pday: el => {
+    S.pday = el.dataset.v; S.reorder = null; render();
+    const top = $('[data-daytop]'); if (!top) return;
+    const y = top.getBoundingClientRect().top + window.scrollY - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--head-h')) || 0);
+    if (window.scrollY > y) window.scrollTo({ top: y });
+  },
+  reorder: el => { S.reorder = S.reorder === el.dataset.date ? null : el.dataset.date; render(); },
+  mvPlan: el => {
+    const t = cur(), p = t.plans.find(x => x.id === el.dataset.id); if (!p) return;
+    const list = dayPlans(t, p.date || ''), i = list.indexOf(p), j = i + Number(el.dataset.dir);
+    if (j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]]; list.forEach((x, k) => { x.ord = k; });
+    Store.save(t); render();
+  },
   addFlight: () => sheetFlight(cur()),
   editFlight: el => sheetFlight(cur(), el.dataset.id),
   addStay: () => sheetStay(cur()),
