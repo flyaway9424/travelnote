@@ -364,10 +364,13 @@ body{background:radial-gradient(900px 360px at 50% -140px,var(--green-soft),tran
 .timeline li::before{border-color:var(--dc,var(--green))}
 .timeline li[data-no]::before{background:var(--dc,var(--green));color:#fff}
 .pd-acts{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;justify-content:flex-end}
-.timeline li.mv .tl-main{padding-right:92px}
-.tl-mv{position:absolute;top:12px;right:8px;display:flex;gap:4px}
-.tl-mv button{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font-size:.8rem;color:var(--ink)}
-.tl-mv button:disabled{opacity:.3}
+.timeline li{transition:transform .15s}
+.timeline li.mv .tl-main{padding-right:60px}
+.tl-drag{position:absolute;top:4px;right:0;width:52px;height:calc(100% - 14px);border:0;background:none;font-size:1.2rem;color:var(--ink-2);touch-action:none;cursor:grab}
+.timeline li.dragging{transition:none;z-index:3}
+.timeline li.dragging .tl-main{box-shadow:0 12px 28px rgba(0,0,0,.22)}
+body.dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
+.mv-hint{margin:-2px 0 8px}
 .tsel{display:flex;gap:6px}
 .tsel select{flex:1 1 0;min-width:0}
 </style>
@@ -699,11 +702,10 @@ function render() {
     .map(([k, l]) => `<button data-act="tab" data-v="${k}" ${S.tab === k ? 'aria-current="page"' : ''}>${TABI[k]}<span>${l}</span></button>`).join('');
   tick();
   const th = $('.trip-head'); if (th) document.documentElement.style.setProperty('--head-h', th.offsetHeight + 'px');
-  if (S.tab === 'plan') {
-    planMap(t);
-    const bar = $('.day-bar'), on = bar && $('[aria-pressed="true"]', bar);
-    if (on) bar.scrollLeft = on.offsetLeft - (bar.clientWidth - on.offsetWidth) / 2;
-  }
+  if (S.tab === 'plan') planMap(t);
+  const bar = $('.day-bar'), on = bar && $('[aria-pressed="true"]', bar);
+  if (on) bar.scrollLeft = on.offsetLeft - (bar.clientWidth - on.offsetWidth) / 2;
+  if (S.tab === 'money' && Date.now() - ((S.rateFixAt || (S.rateFixAt = {}))[t.id] || 0) > 600000) { S.rateFixAt[t.id] = Date.now(); fixAutoRates(t); }
 }
 
 function homeHtml() {
@@ -745,7 +747,7 @@ function tabMoney(t, L) {
     (fx ? walletHtml(t, L) : '') +
     `<div class="seg sub" role="tablist">${[['list', '내역'], ['stats', '통계'], ['settle', '정산']].map(([k, l]) =>
       `<button role="tab" aria-selected="${v === k}" data-act="mview" data-v="${k}">${l}</button>`).join('')}</div>` +
-    (v === 'stats' ? statsHtml(t, L) : v === 'settle' ? settleHtml(t, L) : listHtml(t, L));
+    (v === 'stats' ? statsHtml(t, L) : v === 'settle' ? settleHtml(t, L) : moneyBar(t) + listHtml(t, L));
 }
 function summaryHtml(t, L) {
   const b = +t.budget || 0;
@@ -779,8 +781,16 @@ function envHtml(l, isNext) {
     <span class="env-of">${money(l.amount, l.cur)} 중 남은 돈</span><span class="env-rate">${rateText(l.rate, l.per, l.cur)}</span>
     <span class="env-bar"><i style="width:${left}%"></i></span></button>`;
 }
+// 가계부 날짜 바: 여행 날짜 + 기록이 있는 날짜 (처음엔 전체)
+function moneyBar(t) {
+  const days = tripDays(t), dates = [...new Set([...days, ...t.expenses.map(x => x.date || ''), ...t.exchanges.map(x => x.date || '')])].sort(dateSort);
+  if (S.mday !== 'all' && !dates.includes(S.mday)) S.mday = 'all';
+  return dayBarHtml(dates, days, S.mday, 'mday');
+}
 function listHtml(t, L) {
-  const items = [...t.expenses.map(x => ({ k: 'e', x })), ...t.exchanges.map(x => ({ k: 'x', x }))];
+  const all = [...t.expenses.map(x => ({ k: 'e', x })), ...t.exchanges.map(x => ({ k: 'x', x }))];
+  const items = all.filter(it => !S.mday || S.mday === 'all' || (it.x.date || '') === S.mday);
+  if (all.length && !items.length) return `<p class="empty">이 날은 아직 기록이 없어요. <b>지출 기록</b>을 누르면 이 날짜로 기록돼요.</p>`;
   if (!items.length) return `<p class="empty">아직 기록이 없어요. 환전했다면 <b>환전 기록</b>부터, 아니면 <b>지출 기록</b>으로 시작하세요.</p>`;
   const g = {};
   items.forEach(it => (g[it.x.date || ''] || (g[it.x.date || ''] = [])).push(it));
@@ -939,10 +949,19 @@ function placePlan(t, rec, old) {
 }
 const DAYC = ['#1F6F5C', '#C0612B', '#7A4FB0', '#2B8A99', '#B23A72', '#8A6A1F', '#4F7A28'];
 const dayColor = (dates, d) => DAYC[Math.max(0, dates.indexOf(d)) % DAYC.length];
+// 날짜 바: [전체] [1일 11.27 금] … (일정·가계부 공용, act로 어느 탭인지 구분)
+const dateSort = (a, b) => (a === '') - (b === '') || a.localeCompare(b);
+function dayBarHtml(dates, days, sel, act) {
+  if (!dates.length) return '';
+  const label = d => { const i = days.indexOf(d); return i >= 0 ? `${i + 1}일` : d ? '기타' : '미정'; };
+  return `<div data-daytop></div><nav class="day-bar" aria-label="날짜 고르기">
+    <button type="button" data-act="${act}" data-v="all" aria-pressed="${sel === 'all'}" style="--dc:#34433E"><b>전체</b><small>${dates.length}일</small></button>
+    ${dates.map(d => `<button type="button" data-act="${act}" data-v="${esc(d)}" aria-pressed="${sel === d}" style="--dc:${dayColor(dates, d)}"><b><i class="dc-dot" aria-hidden="true"></i>${label(d)}</b><small>${d ? `${esc(fmtShort(d))} ${WD[pd(d).getDay()]}` : '날짜 없음'}</small></button>`).join('')}</nav>`;
+}
 // 일정 탭의 날짜들: 여행 날짜 + 일정·항공편·숙소 날짜 ('날짜 없음'은 맨 뒤)
 function planDates(t) {
   return [...new Set([...tripDays(t), ...t.plans.map(p => p.date || ''), ...[...t.flights.map(f => f.date), ...t.stays.flatMap(s => [s.inDate, s.outDate])].filter(Boolean)])]
-    .sort((a, b) => (a === '') - (b === '') || a.localeCompare(b));
+    .sort(dateSort);
 }
 // 구글지도에 넘길 장소: 검색으로 고른 곳은 이름+장소ID, 지도에서 찍은 곳은 좌표
 const stopOf = p => ({ q: p.placeId ? (p.place || p.title || p.name) : p.lat != null ? `${p.lat},${p.lng}` : (p.place || p.name), id: p.placeId || '' });
@@ -1009,10 +1028,7 @@ function tabPlan(t) {
       <span class="muted">${t.tz && t.tz !== 'Asia/Seoul' ? `${esc(tzLabel(t.tz))} ${gapText(t.tz)}` : fmtRange(t)}</span>
       ${nf ? `<span class="muted">✈️ 다음 비행기 ${esc(fmtShort(nf.date))} ${esc(nf.time)}${nf.no ? ` ${esc(nf.no)}` : ''}</span>` : ''}</div>`
     : `<p class="empty">여행 날짜를 <button class="link" data-act="tripSettings">여행 설정</button>에서 정하면 날짜별 일정표가 만들어져요.</p>`;
-  const label = d => { const i = days.indexOf(d); return i >= 0 ? `${i + 1}일` : d ? '기타' : '미정'; };
-  const bar = dates.length ? `<div data-daytop></div><nav class="day-bar" aria-label="날짜 고르기">
-    <button type="button" data-act="pday" data-v="all" aria-pressed="${S.pday === 'all'}" style="--dc:#34433E"><b>전체</b><small>${dates.length}일</small></button>
-    ${dates.map(d => `<button type="button" data-act="pday" data-v="${esc(d)}" aria-pressed="${S.pday === d}" style="--dc:${dayColor(dates, d)}"><b><i class="dc-dot" aria-hidden="true"></i>${label(d)}</b><small>${d ? `${esc(fmtShort(d))} ${WD[pd(d).getDay()]}` : '날짜 없음'}</small></button>`).join('')}</nav>` : '';
+  const bar = dayBarHtml(dates, days, S.pday, 'pday');
   const scope = S.pday === 'all' ? dates : dates.filter(d => d === S.pday);
   const hasMap = GMAPS_KEY && scope.some(d => t.plans.some(p => (p.date || '') === d && p.lat != null) || stayOn(t, d).some(s => s.lat != null));
   const mapSec = hasMap ? `<section class="plan-map"><div class="gmap-slot" data-mapslot><p class="hint">지도를 불러오는 중…</p></div></section>` : '';
@@ -1026,8 +1042,8 @@ function tabPlan(t) {
       return `<li data-plan="${p.id}"${nos.has(p.id) ? ` data-no="${nos.get(p.id)}"` : ''}${mv ? ' class="mv"' : ''}><button class="tl-main" data-act="editPlan" data-id="${p.id}">
         ${p.time ? `<span class="tl-time">${esc(p.time)}</span>` : ''}<span class="tl-title">${esc(p.title || p.place || '일정')}</span>
         ${p.memo ? `<span class="tl-memo">${esc(p.memo)}</span>` : ''}</button>
-        ${mv ? `<div class="tl-mv"><button type="button" data-act="mvPlan" data-id="${p.id}" data-dir="-1" aria-label="위로"${i === 0 ? ' disabled' : ''}>▲</button><button type="button" data-act="mvPlan" data-id="${p.id}" data-dir="1" aria-label="아래로"${i === items.length - 1 ? ' disabled' : ''}>▼</button></div>` : ''}
-        ${has || safeUrl(p.link) ? `<div class="tl-links">${has ? `<a href="${esc(placeLink(p))}" target="_blank" rel="noopener">📍 ${esc(p.place || p.title || '지도에서 보기')}</a>` : ''}${p.lat != null ? `<a href="${esc(dirLink(null, p))}" target="_blank" rel="noopener">길찾기</a>${prev ? `<a class="sub" href="${esc(dirLink(prev, p))}" target="_blank" rel="noopener">이전 장소에서</a>` : ''}` : ''}${safeUrl(p.link) ? `<a href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener">링크 열기</a>` : ''}</div>` : ''}</li>`;
+        ${mv ? `<button type="button" class="tl-drag" aria-label="끌어서 순서 바꾸기">☰</button>` : ''}
+        ${!mv && (has || safeUrl(p.link)) ? `<div class="tl-links">${has ? `<a href="${esc(placeLink(p))}" target="_blank" rel="noopener">📍 ${esc(p.place || p.title || '지도에서 보기')}</a>` : ''}${p.lat != null ? `<a href="${esc(dirLink(null, p))}" target="_blank" rel="noopener">길찾기</a>${prev ? `<a class="sub" href="${esc(dirLink(prev, p))}" target="_blank" rel="noopener">이전 장소에서</a>` : ''}` : ''}${safeUrl(p.link) ? `<a href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener">링크 열기</a>` : ''}</div>` : ''}</li>`;
     };
     const ev = (time, edge, id, act, title, sub) => ({ time, edge, html: `<li class="ev"><button class="tl-main" data-act="${act}" data-id="${id}">${time ? `<span class="tl-time">${esc(time)}</span>` : ''}<span class="tl-title">${esc(title)}</span>${sub ? `<span class="tl-memo">${esc(sub)}</span>` : ''}</button></li>` });
     // 항공편·체크인/아웃은 시간 있는 일정 사이 제자리에 끼운다 (시간 없는 체크아웃은 맨 앞, 체크인은 맨 뒤)
@@ -1035,7 +1051,7 @@ function tabPlan(t) {
       ...t.stays.filter(s => s.outDate === d).map(s => ev(s.outTime, 'first', s.id, 'editStay', `🏨 체크아웃 · ${s.name || '숙소'}`, '')),
       ...t.stays.filter(s => s.inDate === d).map(s => ev(s.inTime, 'last', s.id, 'editStay', `🏨 체크인 · ${s.name || '숙소'}`, ''))].sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
     const rows = items.map((p, i) => ({ time: p.time, html: planRow(p, i) }));
-    for (const e of evs) {
+    for (const e of mv ? [] : evs) {
       let i;
       if (!e.time) i = e.edge === 'first' ? 0 : rows.length;
       else {
@@ -1047,6 +1063,7 @@ function tabPlan(t) {
     const night = stayOn(t, d).find(s => s.lat != null && d < (s.outDate || s.inDate));
     return `<section class="plan-day" style="--dc:${dayColor(dates, d)}"><header><h3>${idx >= 0 ? `${idx + 1}일차` : (d ? '기타 날짜' : '날짜 없음')}<span>${d ? fmtDay(d) : ''}</span></h3>
       <div class="pd-acts">${items.length > 1 ? `<button class="link" data-act="reorder" data-date="${esc(d)}">${mv ? '완료' : '순서 바꾸기'}</button>` : ''}${stops.length > 1 ? `<a href="${esc(routeLink(stops))}" target="_blank" rel="noopener">동선·거리 지도로 보기</a>` : ''}</div></header>
+      ${mv ? '<p class="hint mv-hint">☰을 꾹 잡고 위아래로 끌어서 순서를 바꾸세요. 항공편·숙소는 시간에 맞춰 자동으로 들어가요.</p>' : ''}
       ${rows.length ? `<ul class="timeline">${rows.map(r => r.html).join('')}</ul>` : ''}
       <div class="day-foot"><button class="btn small ghost add-line" data-act="addPlan" data-date="${esc(d)}">일정 추가</button>${night ? `<a href="${esc(dirLink(null, night))}" target="_blank" rel="noopener">🏨 숙소로 길찾기</a>` : ''}</div></section>`;
   }).join('') + (dates.length ? '' : `<button class="btn" data-act="addPlan" data-date="">일정 추가</button>`);
@@ -1179,6 +1196,40 @@ function latestRate(t, c) {
   const ex = t.exchanges.filter(e => e.cur === c).sort(byOrd).pop();
   return ex ? { rate: ex.rate, per: ex.per || defaultPer(c) } : null;
 }
+// ----- 자동 환율: 무료 공개 환율(fawazahmed0/currency-api, 매일 갱신되는 시장 환율) -----
+const RATE_KEY = 'travelnote:rates';
+let rateCache = {}; try { rateCache = JSON.parse(localStorage.getItem(RATE_KEY)) || {}; } catch {}
+const latestRates = {}, missing = {};
+// { rate: 1단위당 원, date: 실제 환율 날짜 }. 그날 환율이 아직 없거나 미래 날짜면 가장 최근 환율
+async function fetchRate(cur, date) {
+  const c = String(cur).toLowerCase(), want = date && date <= today() ? date : 'latest', key = cur + '|' + want;
+  if (want !== 'latest' && rateCache[key]) return rateCache[key];
+  if (want === 'latest' && latestRates[cur] && Date.now() - latestRates[cur].at < 3600000) return latestRates[cur].r;
+  if (want !== 'latest' && Date.now() - (missing[key] || 0) < 3600000) return fetchRate(cur, '');
+  for (const u of [`https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${want}/v1/currencies/${c}.min.json`, `https://${want}.currency-api.pages.dev/v1/currencies/${c}.min.json`]) {
+    try {
+      const res = await fetch(u); if (!res.ok) continue;
+      const j = await res.json(), v = j[c] && j[c].krw;
+      if (!(v > 0)) continue;
+      const r = { rate: v, date: j.date };
+      if (want === 'latest') latestRates[cur] = { r, at: Date.now() };
+      else { rateCache[key] = r; try { localStorage.setItem(RATE_KEY, JSON.stringify(rateCache)); } catch {} }
+      return r;
+    } catch {}
+  }
+  if (want === 'latest') return null;
+  missing[key] = Date.now(); return fetchRate(cur, '');
+}
+// 그날 환율이 없어 임시로 넣었던 자동 환율을, 그날이 지나면 그날 환율로 바꾼다
+async function fixAutoRates(t) {
+  const due = t.expenses.filter(x => x.method === 'live' && x.rateSrc === 'auto' && x.rateDate && x.rateDate !== x.date && x.date && x.date <= today());
+  let n = 0;
+  for (const x of due) {
+    const r = await fetchRate(x.cur, x.date);
+    if (r && r.date === x.date) { x.rate = r4(r.rate * (+x.per || defaultPer(x.cur))); x.rateDate = r.date; n++; }
+  }
+  if (n) { Store.save(t); render(); toast(`${n}건의 환율을 그날 환율로 바꿨어요`); }
+}
 function rateSearchLink(c) { return 'https://search.naver.com/search.naver?query=' + encodeURIComponent(ci(c).name + ' 환율'); }
 
 // ----- 지출 -----
@@ -1196,7 +1247,7 @@ function sheetExpense(t, id) {
   const old = id ? t.expenses.find(e => e.id === id) : null;
   const opts = [...new Set([...(t.curs || []), t.home, ...(old ? [old.cur] : [])])];
   const hasLots = c => t.exchanges.some(e => e.cur === c);
-  const d = old ? clone(old) : { id: uid('e_'), date: defaultDate(t), time: '', cur: opts[0], amount: '', method: hasLots(opts[0]) ? 'cash' : 'live',
+  const d = old ? clone(old) : { id: uid('e_'), date: S.mday && S.mday !== 'all' ? S.mday : defaultDate(t), time: '', cur: opts[0], amount: '', method: hasLots(opts[0]) ? 'cash' : 'live',
     wallet: '현금', cat: '식비', memo: '', note: '', payer: t.members[0], split: [], photos: [], ts: Date.now() };
   d.photos = d.photos || []; d.split = d.split || []; d.per = +d.per || defaultPer(d.cur);
   if (d.method !== 'live') { const lr = latestRate(t, d.cur); d.rate = lr ? lr.rate : ''; d.per = lr ? lr.per : defaultPer(d.cur); d.krw = ''; }
@@ -1211,7 +1262,8 @@ function sheetExpense(t, id) {
     <div class="fld" data-sec="rate"><span class="fl">결제일 환율</span>
       <div class="rate-in"><span data-perlbl></span><input id="f-rate" inputmode="decimal" autocomplete="off" aria-label="결제일 환율"><span>원</span></div>
       <div class="rate-in"><span>청구된 원화</span><input id="f-krw" inputmode="numeric" autocomplete="off" placeholder="알면 입력" aria-label="청구된 원화"><span>원</span></div>
-      <p class="hint">카드 명세서의 원화 금액을 넣으면 그 금액이 그대로 쓰여요. <a data-ratelink target="_blank" rel="noopener">오늘 환율 검색</a></p></div>
+      <p class="hint" data-ratenote aria-live="polite"></p>
+      <p class="hint">자동 환율은 시장 환율이라 카드사 청구액과 조금 다를 수 있어요. 명세서의 원화 금액을 넣으면 그 금액이 그대로 쓰여요. <a data-ratelink target="_blank" rel="noopener">환율 검색</a></p></div>
     <div class="preview" data-preview aria-live="polite"></div>
     <div class="fld two"><div><label for="f-date">날짜</label><input type="date" id="f-date" value="${esc(d.date)}"></div><div><label for="f-time">시간</label><input type="time" id="f-time" value="${esc(d.time || '')}"></div></div>
     <div class="fld"><span class="fl">분류</span><div class="chips" data-cats>${CATS.map(c => `<button type="button" data-v="${c}" aria-pressed="${d.cat === c}">${CAT_ICON[c]} ${c}</button>`).join('')}</div></div>
@@ -1240,17 +1292,30 @@ function sheetExpense(t, id) {
       krw.value = parseNum(d.krw) > 0 ? d.krw : '';
       preview();
     };
+    // 자동 환율: 직접 고치기 전까지는 날짜·통화에 맞춰 자동으로 채운다 (예전에 직접 넣은 기록은 그대로 둠)
+    let manual = !!(old && old.method === 'live' && old.rateSrc !== 'auto'), rseq = 0;
+    const note = s => { $('[data-ratenote]', root).textContent = s; };
+    const autoRate = async () => {
+      if (manual || d.cur === t.home || d.method !== 'live') { note(''); return; }
+      const my = ++rseq; note('환율을 불러오는 중…');
+      const r = await fetchRate(d.cur, d.date);
+      if (my !== rseq || manual) return;
+      if (!r) { note('환율을 불러오지 못했어요. 직접 넣어 주세요.'); return; }
+      d.rate = r4(r.rate * d.per); d.rateSrc = 'auto'; d.rateDate = r.date; d.krw = '';
+      rate.value = d.rate; krw.value = ''; preview();
+      note(r.date === d.date ? `${fmtShort(r.date)} 환율을 자동으로 넣었어요.` : `${fmtShort(d.date)} 환율이 아직 없어서 ${fmtShort(r.date)} 환율을 넣었어요. 그날이 지나면 그날 환율로 자동으로 바뀌어요.`);
+    };
     const setCurrency = v => {
       d.cur = v; const lr = latestRate(t, v);
       d.per = lr ? lr.per : defaultPer(v); d.rate = lr ? lr.rate : ''; d.krw = '';
       if (v !== t.home) { d.method = hasLots(v) ? 'cash' : 'live'; setSeg(root, 'method', d.method); }
       setSeg(root, 'cur', v);
     };
-    bindSeg(root, 'cur', v => { setCurrency(v); sync(); });
+    bindSeg(root, 'cur', v => { setCurrency(v); sync(); autoRate(); });
     bindSeg(root, 'method', v => {
       d.method = v;
       if (v === 'live' && !(parseNum(d.rate) > 0)) { const lr = latestRate(t, d.cur); if (lr) { d.rate = lr.rate; d.per = lr.per; } }
-      sync();
+      sync(); autoRate();
     });
     $('#f-wallet', root).onchange = e => { d.wallet = e.target.value; preview(); };
     amt.oninput = () => {
@@ -1259,9 +1324,9 @@ function sheetExpense(t, id) {
       if (k > 0 && a > 0) { d.rate = r4(k * d.per / a); rate.value = d.rate; }
       preview();
     };
-    rate.oninput = () => { d.rate = rate.value; d.krw = ''; krw.value = ''; preview(); };
-    krw.oninput = () => { d.krw = krw.value; const a = parseNum(d.amount), k = parseNum(krw.value); if (a > 0 && k > 0) { d.rate = r4(k * d.per / a); rate.value = d.rate; } preview(); };
-    $('#f-date', root).oninput = e => { d.date = e.target.value; preview(); };
+    rate.oninput = () => { manual = true; rseq++; note(''); d.rateSrc = 'manual'; d.rateDate = ''; d.rate = rate.value; d.krw = ''; krw.value = ''; preview(); };
+    krw.oninput = () => { manual = true; rseq++; note(''); d.rateSrc = 'krw'; d.rateDate = ''; d.krw = krw.value; const a = parseNum(d.amount), k = parseNum(krw.value); if (a > 0 && k > 0) { d.rate = r4(k * d.per / a); rate.value = d.rate; } preview(); };
+    $('#f-date', root).oninput = e => { d.date = e.target.value; preview(); autoRate(); };
     $('#f-time', root).oninput = e => { d.time = e.target.value; preview(); };
     $('#f-memo', root).oninput = e => { d.memo = e.target.value; };
     $('#f-note', root).oninput = e => { d.note = e.target.value; };
@@ -1323,7 +1388,7 @@ function sheetExpense(t, id) {
       dropAssets([...new Set([...(old.photos || []).map(a => a.id), ...fresh])]);
       saved = 'deleted'; Store.save(t); closeSheet(); render(); toast('삭제했어요');
     });
-    sync();
+    sync(); autoRate();
     if (!old) amt.focus();
   }, () => { if (saved !== 'deleted') cleanupAssets(saved, old && old.photos, d.photos, fresh); });
 }
@@ -1795,20 +1860,9 @@ const ACT = {
   editEx: el => sheetExchange(cur(), el.dataset.id),
   addPlan: el => sheetPlan(cur(), null, el.dataset.date),
   editPlan: el => sheetPlan(cur(), el.dataset.id),
-  pday: el => {
-    S.pday = el.dataset.v; S.reorder = null; render();
-    const top = $('[data-daytop]'); if (!top) return;
-    const y = top.getBoundingClientRect().top + window.scrollY - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--head-h')) || 0);
-    if (window.scrollY > y) window.scrollTo({ top: y });
-  },
+  pday: el => pickDay('pday', el),
+  mday: el => pickDay('mday', el),
   reorder: el => { S.reorder = S.reorder === el.dataset.date ? null : el.dataset.date; render(); },
-  mvPlan: el => {
-    const t = cur(), p = t.plans.find(x => x.id === el.dataset.id); if (!p) return;
-    const list = dayPlans(t, p.date || ''), i = list.indexOf(p), j = i + Number(el.dataset.dir);
-    if (j < 0 || j >= list.length) return;
-    [list[i], list[j]] = [list[j], list[i]]; list.forEach((x, k) => { x.ord = k; });
-    Store.save(t); render();
-  },
   addFlight: () => sheetFlight(cur()),
   editFlight: el => sheetFlight(cur(), el.dataset.id),
   addStay: () => sheetStay(cur()),
@@ -1830,6 +1884,53 @@ document.addEventListener('change', e => {
   c.done = e.target.checked; Store.save(t); render();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && e.target.id === 'ck-text') { e.preventDefault(); addCheck(); } });
+
+// 날짜를 고르면 그 날짜 맨 위로 (스크롤을 내린 상태였다면)
+function pickDay(key, el) {
+  S[key] = el.dataset.v; S.reorder = null; render();
+  const top = $('[data-daytop]'); if (!top) return;
+  const y = top.getBoundingClientRect().top + window.scrollY - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--head-h')) || 0);
+  if (window.scrollY > y) window.scrollTo({ top: y });
+}
+// ===== 일정 끌어서 순서 바꾸기 =====
+let drag = null;
+function dragMove() {
+  const d = drag, dy = d.client + scrollY - d.startY, mid = d.mids[d.from] + dy;
+  d.li.style.transform = `translateY(${dy}px)`;
+  let to = d.from;
+  d.mids.forEach((m, i) => { if (i < d.from && mid < m) to = Math.min(to, i); if (i > d.from && mid > m) to = Math.max(to, i); });
+  d.to = to;
+  d.lis.forEach((x, i) => { if (x === d.li) return; const s = d.from < i && i <= to ? -d.h : to <= i && i < d.from ? d.h : 0; x.style.transform = s ? `translateY(${s}px)` : ''; });
+}
+function dragScroll() {
+  if (!drag) return;
+  const top = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--head-h')) || 0) + 90, bottom = innerHeight - 120, c = drag.client;
+  const v = c < top ? (c - top) / 4 : c > bottom ? (c - bottom) / 4 : 0;
+  if (v) { scrollBy(0, Math.max(-16, Math.min(16, v))); dragMove(); }
+  requestAnimationFrame(dragScroll);
+}
+document.addEventListener('pointerdown', e => {
+  const h = e.target.closest && e.target.closest('.tl-drag'); if (!h) return;
+  e.preventDefault();
+  const li = h.closest('li'), lis = $$('li[data-plan]', li.parentNode);
+  drag = { li, lis, from: lis.indexOf(li), to: lis.indexOf(li), startY: e.clientY + scrollY, client: e.clientY, h: li.offsetHeight,
+    mids: lis.map(x => { const r = x.getBoundingClientRect(); return r.top + scrollY + r.height / 2; }) };
+  try { h.setPointerCapture(e.pointerId); } catch {}
+  li.classList.add('dragging'); document.body.classList.add('dragging');
+  dragScroll();
+});
+document.addEventListener('pointermove', e => { if (drag) { drag.client = e.clientY; dragMove(); } });
+const dragEnd = e => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  document.body.classList.remove('dragging'); d.li.classList.remove('dragging'); d.lis.forEach(x => { x.style.transform = ''; });
+  if (e.type === 'pointercancel' || d.to === d.from) return;
+  const ids = d.lis.map(x => x.dataset.plan), [m] = ids.splice(d.from, 1); ids.splice(d.to, 0, m);
+  const t = cur(); ids.forEach((id, k) => { const p = t.plans.find(x => x.id === id); if (p) p.ord = k; });
+  Store.save(t); render();
+};
+document.addEventListener('pointerup', dragEnd);
+document.addEventListener('pointercancel', dragEnd);
 
 // ===== 로그인 =====
 function loginHtml() {
