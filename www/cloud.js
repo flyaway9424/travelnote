@@ -180,14 +180,21 @@
       const type = blob.type || (o && o.type) || '';
       const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
       const id = 'a_' + gen(16);
-      await ok(assets.doc(id).set({ type, data, ts: Date.now(), owner: TN.user.uid, trip: (o && o.trip) || '' })); cache.set(id, data);
+      cache.set(id, data);
+      // 서버 응답을 기다리지 않는다: 기기에 먼저 저장되고 뒤에서 올라감 (앱을 닫아도 다음에 열면 이어서 올라감)
+      assets.doc(id).set({ type, data, ts: Date.now(), owner: TN.user.uid, trip: (o && o.trip) || '' })
+        .catch(e => { console.warn(e); say('사진 하나를 저장하지 못했어요. 인터넷 연결을 확인하고 다시 올려 주세요.'); });
       return { id, contentType: type };
     },
     delete: id => ok(assets.doc(id).delete()),
   };
   TN.assetUrl = id => {
     if (cache.has(id)) return cache.get(id);
-    if (!loading.has(id)) { loading.add(id); assets.doc(id).get().then(s => { if (s.exists) { cache.set(id, s.data().data); bump(); } }).catch(() => loading.delete(id)); }
+    if (!loading.has(id)) {
+      loading.add(id);
+      const retry = () => setTimeout(() => loading.delete(id), 5000); // 다른 사람이 아직 올리는 중이면 잠시 뒤 다시
+      assets.doc(id).get().then(s => { if (s.exists) { cache.set(id, s.data().data); bump(); } else retry(); }).catch(retry);
+    }
     return null;
   };
 
