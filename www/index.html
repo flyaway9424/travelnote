@@ -8,7 +8,7 @@
 <link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <script src="firebase-config.js"></script>
-<script src="vendor/firebase-app-compat.js"></script><script src="vendor/firebase-firestore-compat.js"></script>
+<script src="vendor/firebase-app-compat.js"></script><script src="vendor/firebase-firestore-compat.js"></script><script src="vendor/firebase-auth-compat.js"></script>
 <script src="cloud.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -346,6 +346,9 @@ body{background:radial-gradient(900px 360px at 50% -140px,var(--green-soft),tran
 .day-foot .add-line{margin-top:0}
 .day-foot a{font-size:.86rem;font-weight:600;text-decoration:none;background:var(--card-soft);color:var(--card);padding:6px 12px;border-radius:999px}
 .gpin.stay{background:var(--card);font-size:14px}
+.login{display:grid;gap:2px;max-width:420px}
+.login-btns{display:grid;gap:8px;margin-top:18px}
+.login .hint{margin-top:10px}
 </style>
 </head>
 <body>
@@ -585,41 +588,29 @@ const PREF_KEY = 'travelnote:ui';
 try { Object.assign(S, JSON.parse(localStorage.getItem(PREF_KEY)) || {}); } catch {}
 function savePrefs() { try { localStorage.setItem(PREF_KEY, JSON.stringify({ tripId: S.tripId, tab: S.tab, mview: S.mview })); } catch {} }
 
-// ===== 저장소: 계정 동기화(db) 우선, 안 되면 이 브라우저(localStorage) =====
+// ===== 저장소: 로그인하면 클라우드(cloud.js), 클라우드가 없으면 이 브라우저(localStorage) =====
 const LOCAL_KEY = 'travelnote:data';
 const Store = {
-  mode: 'local', col: null, pending: new Map(), inflight: new Set(), again: new Set(),
-  async init() {
-    const cl = window.claude;
-    if (cl && typeof cl.use === 'function') {
-      try {
-        const [db, user] = await Promise.all([cl.use('db'), cl.use('user')]);
-        const id = user ? await user.id() : null;
-        if (db && id) { this.col = db.collection('data/users/' + id); this.mode = 'db'; }
-      } catch {}
-      cl.use('assets').then(a => { S.caps.assets = a; render(); }).catch(() => {});
-      cl.use('downloads').then(d => { S.caps.downloads = d; render(); }).catch(() => {});
-      cl.use('sample').then(async s => {
-        S.caps.sample = s;
-        if (s) { const lim = await s.limits().catch(() => null); S.caps.sampleImg = !!(lim && lim.images); }
-      }).catch(() => {});
-    }
-    if (this.mode === 'db') this.subscribe();
-    else { this.loadLocal(); S.ready = true; render(); }
+  mode: 'local',
+  init() {
+    const T = window.TN;
+    if (!T || !T.cloud) { this.loadLocal(); S.ready = true; render(); return; }
+    this.mode = 'db'; S.caps.assets = T.assets; S.caps.downloads = T.downloads;
+    T.onAuth(u => {
+      S.user = u; S.trips = {};
+      if (!u) { S.ready = true; render(); return; }
+      S.ready = false; render();
+      T.watch((id, t) => { S.trips[id] = t; if (S.ready) render(); },
+        id => { delete S.trips[id]; if (S.tripId === id) { S.tripId = null; savePrefs(); } if (S.ready) render(); },
+        () => { S.ready = true; render(); this.migrate(); });
+    });
   },
-  subscribe() {
-    this.col.onSnapshot(snap => {
-      let changed = !S.ready;
-      for (const ch of snap.docChanges()) {
-        const id = ch.doc.id;
-        if (!id.startsWith('t_') || this.pending.has(id) || this.inflight.has(id)) continue;
-        if (ch.type === 'removed') delete S.trips[id];
-        else S.trips[id] = clone(ch.doc.data());
-        changed = true;
-      }
-      S.ready = true;
-      if (changed) render();
-    }, () => toast('동기화가 끊겼어요. 페이지를 새로고침해 주세요.'));
+  async migrate() {
+    try {
+      const r = await window.TN.migrate();
+      if (r && r.moved) toast(`이 기기에 있던 여행 ${r.moved}개를 내 계정으로 옮겼어요`);
+      else if (r && r.skipped) toast(`이 기기의 예전 여행 ${r.skipped}개는 이미 다른 계정으로 옮겨져 있어서 건너뛰었어요`);
+    } catch (e) { console.warn(e); }
   },
   loadLocal() { try { S.trips = (JSON.parse(localStorage.getItem(LOCAL_KEY)) || {}).trips || {}; } catch { S.trips = {}; } },
   saveLocal() {
@@ -629,33 +620,13 @@ const Store = {
   save(t) {
     t.updatedAt = Date.now();
     S.trips[t.id] = t;
-    if (this.mode === 'local') { this.saveLocal(); return; }
-    clearTimeout(this.pending.get(t.id));
-    this.pending.set(t.id, setTimeout(() => this.flush(t.id), 400));
+    if (this.mode === 'local') this.saveLocal(); else window.TN.save(t);
   },
-  async flush(id, retried) {
-    this.pending.delete(id);
-    if (this.inflight.has(id)) { this.again.add(id); return; }
-    const t = S.trips[id]; if (!t) return;
-    this.inflight.add(id);
-    try { await this.col.doc(id).set(clone(t)); }
-    catch (e) {
-      const code = e && e.code;
-      if (code === 'unavailable' && !retried) { this.inflight.delete(id); setTimeout(() => this.flush(id, true), 800 + Math.random() * 800); return; }
-      if (code === 'invalid_argument') toast('저장하지 못했어요. 이 여행의 기록이 너무 많아요. 오래된 노트나 일기를 정리해 주세요.');
-      else if (code === 'quota_exceeded') toast('저장 공간이 가득 찼어요. 지난 여행을 백업한 뒤 삭제해 주세요.');
-      else toast('저장하지 못했어요. 잠시 후 다시 시도해 주세요.');
-    } finally {
-      this.inflight.delete(id);
-      if (this.again.has(id)) { this.again.delete(id); this.flush(id); }
-    }
-  },
-  flushAll() { for (const [id, tm] of this.pending) { clearTimeout(tm); this.flush(id); } },
+  flushAll() { if (this.mode === 'db') window.TN.flushAll(); },
   async remove(id) {
     delete S.trips[id];
     if (this.mode === 'local') { this.saveLocal(); return; }
-    clearTimeout(this.pending.get(id)); this.pending.delete(id);
-    try { await this.col.doc(id).delete(); } catch { toast('삭제하지 못했어요. 다시 시도해 주세요.'); }
+    await window.TN.remove(id);
   },
 };
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') Store.flushAll(); });
@@ -695,7 +666,8 @@ const TABI = {
   diary: '<svg viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/></svg>' };
 function render() {
   const app = $('#app'), nav = $('#tabs');
-  if (!S.ready) { nav.hidden = true; return; }
+  if (!S.ready) { nav.hidden = true; app.innerHTML = '<p class="loading">불러오는 중</p>'; return; }
+  if (Store.mode === 'db' && !S.user) { nav.hidden = true; app.innerHTML = loginHtml(); return; }
   const t = cur();
   if (!t) { S.tripId = null; nav.hidden = true; app.innerHTML = homeHtml(); return; }
   const L = computeLedger(t);
@@ -710,7 +682,6 @@ function render() {
 
 function homeHtml() {
   const list = Object.values(S.trips).map(normTrip).sort((a, b) => (b.start || '').localeCompare(a.start || '') || b.createdAt - a.createdAt);
-  const sync = Store.mode === 'db' ? '클라우드에 실시간 저장돼요. 같은 보관함 코드를 쓰면 다른 기기·가족과 공유돼요.' : '이 기기에만 저장돼요. ☁️ 설정에서 클라우드 연결 방법을 확인하세요.';
   return `<header class="home-head"><h1>여행노트</h1>
     <p>환전해 둔 돈은 환전한 날의 환율로, 카드처럼 바로 결제한 돈은 결제일 환율로 원화를 계산해요.</p></header>
     <button class="btn primary" data-act="newTrip">새 여행 만들기</button>
@@ -721,7 +692,7 @@ function homeHtml() {
     }).join('')}</ul>`
     : `<div class="empty">아직 만든 여행이 없어요. 여행을 만들고 환전과 지출을 기록해 보세요.<br>
        <button class="btn" data-act="demo">예시 여행 열어보기</button></div>`}
-    <div class="home-foot"><button class="link" data-act="importBackup">백업 파일 불러오기</button><button class="link" data-act="sync">☁️ 동기화·공유</button><span>${sync}</span></div>`;
+    <div class="home-foot"><button class="link" data-act="importBackup">백업 파일 불러오기</button>${Store.mode === 'db' ? `<button class="link" data-act="sync">👤 ${esc(S.user.nick || '내 계정')}</button><span>로그인한 기기 어디서나 같은 여행이 열려요.</span>` : `<button class="link" data-act="sync">☁️ 동기화</button><span>이 기기에만 저장돼요.</span>`}</div>`;
 }
 
 function tripHead(t) {
@@ -1085,7 +1056,7 @@ async function uploadFiles(files, fresh) {
   for (const f of files) {
     try {
       const blob = f.type.startsWith('image/') ? await compressImage(f) : f;
-      const r = await S.caps.assets.upload(blob, { type: blob.type || f.type });
+      const r = await S.caps.assets.upload(blob, { type: blob.type || f.type, trip: S.tripId });
       out.push({ id: r.id, type: r.contentType, name: f.name });
       if (fresh) fresh.push(r.id);
     } catch (e) { toast('파일을 올리지 못했어요. 사진이나 PDF인지 확인해 주세요.'); }
@@ -1766,23 +1737,63 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && e.target.id === 'ck-text') { e.preventDefault(); addCheck(); } });
 
+// ===== 로그인 =====
+function loginHtml() {
+  return `<header class="home-head"><h1>여행노트</h1>
+    <p>별명과 숫자 6자리 PIN으로 들어가요. 다른 폰이나 PC에서도 같은 별명과 PIN이면 내 여행이 그대로 열려요.</p></header>
+    <div class="login">
+      <div class="fld"><label for="lg-nick">별명</label><input id="lg-nick" maxlength="10" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="한글·영문·숫자 10자까지"></div>
+      <div class="fld"><label for="lg-pin">PIN</label><input id="lg-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="current-password" placeholder="숫자 6자리"></div>
+      <div class="fld" data-pin2 hidden><label for="lg-pin2">PIN 한 번 더</label><input id="lg-pin2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="가입할 PIN을 한 번 더"></div>
+      <div class="login-btns"><button class="btn primary" data-act="login">로그인</button><button class="btn" data-act="signup">처음이에요, 가입하기</button></div>
+      <p class="hint">PIN은 잊어버리면 되찾을 방법이 없어요. 가입하면 꼭 따로 적어 두세요.</p></div>`;
+}
+function loginInput() {
+  const nick = ($('#lg-nick').value || '').trim(), pin = $('#lg-pin').value || '';
+  if (!/^[0-9A-Za-z가-힣_-]{1,10}$/.test(nick)) { toast('별명은 한글·영문·숫자로 10자까지 써 주세요.'); $('#lg-nick').focus(); return null; }
+  if (!/^\d{6}$/.test(pin)) { toast('PIN은 숫자 6자리예요.'); $('#lg-pin').focus(); return null; }
+  return { nick, pin };
+}
+function authMsg(e) {
+  const c = (e && e.code) || '';
+  if (/invalid-credential|wrong-password|user-not-found|invalid-login/.test(c)) return '별명이나 PIN이 맞지 않아요.';
+  if (/email-already-in-use/.test(c)) return '이미 쓰고 있는 별명이에요. 다른 별명을 골라 주세요.';
+  if (/too-many-requests/.test(c)) return '여러 번 틀려서 잠시 막혔어요. 몇 분 뒤 다시 해 주세요.';
+  if (/network/.test(c)) return '인터넷 연결을 확인해 주세요.';
+  if (/operation-not-allowed/.test(c)) return 'Firebase에서 이메일/비밀번호 로그인을 켜야 해요.';
+  return '로그인하지 못했어요. 잠시 후 다시 해 주세요.';
+}
+ACT.login = async el => {
+  const v = loginInput(); if (!v) return;
+  el.disabled = true;
+  try { await window.TN.signIn(v.nick, v.pin); } catch (e) { toast(authMsg(e)); el.disabled = false; }
+};
+ACT.signup = async el => {
+  const box = $('[data-pin2]');
+  if (box.hidden) { box.hidden = false; $('#lg-pin2').focus(); toast('가입할 PIN을 한 번 더 입력하고 다시 눌러 주세요.'); return; }
+  const v = loginInput(); if (!v) return;
+  if ($('#lg-pin2').value !== v.pin) { toast('두 PIN이 달라요. 다시 확인해 주세요.'); return; }
+  el.disabled = true;
+  try {
+    await window.TN.signUp(v.nick, v.pin); S.user = window.TN.user; render();
+    openSheet(sheetHead('가입했어요') + `<p style="margin-top:8px"><b>${esc(v.nick)}</b> 별명으로 가입했어요.</p>
+      <p class="warn">PIN은 잊어버리면 되찾을 방법이 없어요. 지금 꼭 따로 적어 두세요.</p>
+      <div class="sheet-foot"><button class="btn primary" data-close>적어 뒀어요</button></div>`);
+  }
+  catch (e) { toast(authMsg(e)); el.disabled = false; }
+};
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.isComposing || !/^lg-/.test(e.target.id || '')) return;
+  e.preventDefault(); const pin2 = $('[data-pin2]');
+  if (pin2 && !pin2.hidden) ACT.signup($('[data-act=signup]')); else ACT.login($('[data-act=login]'));
+});
 ACT.sync = () => {
-  const T = window.TN || {};
-  if (!T.cloud) { openSheet(sheetHead('동기화·공유') + '<p class="hint" style="margin-top:8px">아직 클라우드가 연결되지 않았어요. README의 Firebase 설정(5분)을 마치면 실시간 동기화와 공유가 켜져요.</p>'); return; }
-  const code = T.room.match(/.{1,4}/g).join('-');
-  openSheet(sheetHead('동기화·공유') + `<p class="hint" style="margin-top:8px">내 보관함 코드예요. <b>꼭 따로 적어 두세요.</b> 새 기기나 가족 폰에 이 코드를 입력하면 같은 여행이 실시간으로 열려요.</p>
-    <p style="font-size:1.3rem;font-weight:700;margin:12px 0;letter-spacing:.04em">${code}</p>
-    <button class="btn" data-act="copyRoom">코드 복사</button>
-    <div class="fld" style="margin-top:18px"><span class="fl">다른 보관함 코드로 바꾸기</span><input id="room-in" placeholder="xxxx-xxxx-xxxx-xxxx" autocapitalize="off"></div>
-    <button class="btn primary" data-act="joinRoom">이 코드로 열기</button>`);
+  if (Store.mode !== 'db') { openSheet(sheetHead('동기화') + '<p class="hint" style="margin-top:8px">아직 클라우드가 연결되지 않았어요. README의 Firebase 설정을 마치면 로그인과 공유가 켜져요.</p>'); return; }
+  openSheet(sheetHead('내 계정') + `<p style="margin-top:8px"><b>${esc(S.user.nick || '이름 없음')}</b> 별명으로 로그인돼 있어요.</p>
+    <p class="hint" style="margin-top:6px">다른 폰이나 PC에서도 같은 별명과 PIN으로 로그인하면 내 여행이 그대로 열려요.</p>
+    <div class="sheet-sec"><button class="btn" data-act="logout">로그아웃</button></div>`);
 };
-ACT.copyRoom = () => { navigator.clipboard.writeText(window.TN.room).then(() => toast('복사했어요'), () => toast('복사하지 못했어요')); };
-ACT.joinRoom = () => {
-  const v = ($('#room-in').value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (v.length < 12) { toast('코드를 확인해 주세요'); return; }
-  try { localStorage.setItem('travelnote:room', v); } catch {}
-  location.reload();
-};
+ACT.logout = async () => { closeSheet(); S.tripId = null; savePrefs(); await window.TN.signOut(); };
 Store.init();
 </script>
 </body>
