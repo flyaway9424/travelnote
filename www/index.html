@@ -373,6 +373,13 @@ body.dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
 .mv-hint{margin:-2px 0 8px}
 .tsel{display:flex;gap:6px}
 .tsel select{flex:1 1 0;min-width:0}
+.home-acts{display:flex;flex-wrap:wrap;gap:8px}
+.sheet-sec .mem-list,.sheet-sec .share-code,.sheet-sec .share-btns,.sheet-sec .hint{flex:1 1 100%}
+.mem-list{list-style:none;margin:6px 0 10px;padding:0;display:grid;gap:6px}
+.mem-list li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;background:var(--surface)}
+.share-code{font-size:1.6rem;font-weight:700;letter-spacing:.12em;margin:4px 0 8px;color:var(--green)}
+.share-btns{display:flex;flex-wrap:wrap;gap:8px}
+.code-in{font-size:1.3rem;letter-spacing:.14em;text-transform:uppercase}
 </style>
 </head>
 <body>
@@ -648,9 +655,10 @@ const Store = {
   },
   flushAll() { if (this.mode === 'db') window.TN.flushAll(); },
   async remove(id) {
+    const code = (S.trips[id] || {}).shareCode;
     delete S.trips[id];
     if (this.mode === 'local') { this.saveLocal(); return; }
-    await window.TN.remove(id);
+    await window.TN.remove(id, code);
   },
 };
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') Store.flushAll(); });
@@ -712,11 +720,11 @@ function homeHtml() {
   const list = Object.values(S.trips).map(normTrip).sort((a, b) => (b.start || '').localeCompare(a.start || '') || b.createdAt - a.createdAt);
   return `<header class="home-head"><h1>여행노트</h1>
     <p>환전해 둔 돈은 환전한 날의 환율로, 카드처럼 바로 결제한 돈은 결제일 환율로 원화를 계산해요.</p></header>
-    <button class="btn primary" data-act="newTrip">새 여행 만들기</button>
+    <div class="home-acts"><button class="btn primary" data-act="newTrip">새 여행 만들기</button>${Store.mode === 'db' ? '<button class="btn" data-act="joinTrip">코드로 참여</button>' : ''}</div>
     ${list.length ? `<ul class="trip-list">${list.map(t => {
       const L = computeLedger(t);
       return `<li><button class="trip-card" data-act="openTrip" data-id="${t.id}"><span class="tc-name">${esc(t.name)}</span><span class="dd">${esc(dday(t))}</span>
-        <span class="tc-date">${fmtRange(t)}</span><span class="tc-sum">${won(L.total)} 사용</span></button></li>`;
+        <span class="tc-date">${fmtRange(t)}${(t.uids || []).length > 1 ? ` · 👥 ${t.uids.length}명` : ''}</span><span class="tc-sum">${won(L.total)} 사용</span></button></li>`;
     }).join('')}</ul>`
     : `<div class="empty">아직 만든 여행이 없어요. 여행을 만들고 환전과 지출을 기록해 보세요.<br>
        <button class="btn" data-act="demo">예시 여행 열어보기</button></div>`}
@@ -1248,7 +1256,7 @@ function sheetExpense(t, id) {
   const opts = [...new Set([...(t.curs || []), t.home, ...(old ? [old.cur] : [])])];
   const hasLots = c => t.exchanges.some(e => e.cur === c);
   const d = old ? clone(old) : { id: uid('e_'), date: S.mday && S.mday !== 'all' ? S.mday : defaultDate(t), time: '', cur: opts[0], amount: '', method: hasLots(opts[0]) ? 'cash' : 'live',
-    wallet: '현금', cat: '식비', memo: '', note: '', payer: t.members[0], split: [], photos: [], ts: Date.now() };
+    wallet: '현금', cat: '식비', memo: '', note: '', payer: S.user && t.members.includes(S.user.nick) ? S.user.nick : t.members[0], split: [], photos: [], ts: Date.now() };
   d.photos = d.photos || []; d.split = d.split || []; d.per = +d.per || defaultPer(d.cur);
   if (d.method !== 'live') { const lr = latestRate(t, d.cur); d.rate = lr ? lr.rate : ''; d.per = lr ? lr.per : defaultPer(d.cur); d.krw = ''; }
   const fresh = []; let saved = false;
@@ -1740,8 +1748,9 @@ function sheetTrip(t) {
     <div class="fld"><label for="t-members">함께 가는 사람</label><input id="t-members" value="${esc(d.members.join(', '))}" placeholder="쉼표로 구분 (예: 나, 민지)" autocomplete="off">
       <p class="hint">두 명 이상이면 지출마다 낸 사람과 같이 쓴 사람을 골라 정산할 수 있어요.</p></div>
     <div class="sheet-foot"><button class="btn primary" data-save>${isNew ? '여행 만들기' : '저장'}</button></div>
-    ${isNew ? '' : `<div class="sheet-sec"><h3>백업</h3><button class="btn small" data-backup>백업 파일로 저장</button><button class="btn small" data-csv>지출 내역 CSV로 저장</button></div>
-    <div class="sheet-sec"><h3>여행 삭제</h3><button class="btn small danger" data-deltrip>이 여행 삭제</button></div>`}`, root => {
+    ${isNew ? '' : shareSecHtml(t) + `<div class="sheet-sec"><h3>백업</h3><button class="btn small" data-backup>백업 파일로 저장</button><button class="btn small" data-csv>지출 내역 CSV로 저장</button></div>
+    ${tripOwner(t) ? `<div class="sheet-sec"><h3>여행 삭제</h3>${(t.uids || []).length > 1 ? '<p class="hint">함께하는 사람 모두에게서 삭제돼요.</p>' : ''}<button class="btn small danger" data-deltrip>이 여행 삭제</button></div>`
+      : `<div class="sheet-sec"><h3>여행에서 나가기</h3><p class="hint">나가면 이 여행이 내 목록에서 사라져요. 기록은 그대로 남고, 코드로 다시 참여할 수 있어요.</p><button class="btn small danger" data-leave>이 여행에서 나가기</button></div>`}`}`, root => {
     const chips = $('[data-curs]', root), tz = $('#t-tz', root);
     const drawTz = () => { const list = TZS.some(z => z[0] === d.tz) ? TZS : [...TZS, [d.tz, d.tz]]; tz.innerHTML = list.map(([v, l]) => `<option value="${esc(v)}" ${v === d.tz ? 'selected' : ''}>${esc(l)}</option>`).join(''); };
     const curx = $('#t-curx', root), list = $('#t-curlist', root);
@@ -1789,12 +1798,94 @@ function sheetTrip(t) {
     if (!isNew) {
       $('[data-backup]', root).onclick = () => saveFile(`여행노트_${fileSafe(t.name)}.json`, JSON.stringify({ app: 'travelnote', version: 1, exportedAt: new Date().toISOString(), trip: t }, null, 1));
       $('[data-csv]', root).onclick = () => saveFile(`여행노트_${fileSafe(t.name)}_지출.csv`, csvOf(t));
+      bindShare(t, root);
       const del = $('[data-deltrip]', root);
-      del.onclick = () => armConfirm(del, '한 번 더 누르면 영구 삭제', () => {
+      if (del) del.onclick = () => armConfirm(del, (t.uids || []).length > 1 ? '한 번 더 누르면 모두에게서 삭제' : '한 번 더 누르면 영구 삭제', () => {
         dropAssets([...t.expenses.flatMap(x => (x.photos || []).map(a => a.id)), ...t.notes.flatMap(n => (n.files || []).map(a => a.id)), ...t.diary.flatMap(x => (x.photos || []).map(a => a.id)), ...[...t.flights, ...t.stays].flatMap(x => (x.files || []).map(a => a.id))]);
         Store.remove(t.id); S.tripId = null; savePrefs(); closeSheet(); render(); toast('여행을 삭제했어요');
       });
     } else $('#t-name', root).focus();
+  });
+}
+
+// ===== 여행별 공유 =====
+const tripOwner = t => Store.mode !== 'db' || !t.owner || (S.user && t.owner === S.user.uid);
+const fmtCode = c => c ? c.slice(0, 3) + '-' + c.slice(3) : '';
+// 함께 가는 사람 이름 바꾸기 (지출의 낸 사람·같이 쓴 사람까지)
+function renameMember(t, a, b) {
+  t.members = [...new Set(t.members.map(m => m === a ? b : m))];
+  for (const x of t.expenses) { if (x.payer === a) x.payer = b; if (Array.isArray(x.split)) x.split = [...new Set(x.split.map(m => m === a ? b : m))]; }
+}
+function shareMsg(e) {
+  const c = (e && e.code) || '';
+  if (/timeout|unavailable|network/.test(c)) return '인터넷 연결을 확인해 주세요.';
+  if (/permission/.test(c)) return '권한이 없어요. Firebase 규칙이 최신인지 확인해 주세요.';
+  return '잠시 후 다시 시도해 주세요.';
+}
+function shareSecHtml(t) {
+  if (Store.mode !== 'db' || !S.user) return '';
+  const me = S.user.uid, own = tripOwner(t), name = u => (t.names || {})[u] || (u === me ? S.user.nick : '알 수 없음');
+  return `<div class="sheet-sec"><h3>함께 쓰기</h3>
+    <ul class="mem-list">${(t.uids || [me]).map(u => `<li><span>${esc(name(u))}${u === me ? ' (나)' : ''}${u === t.owner ? ' · 만든 사람' : ''}</span>${own && u !== me ? `<button class="btn small ghost" data-kick="${esc(u)}">내보내기</button>` : ''}</li>`).join('')}</ul>
+    ${own ? (t.shareCode ? `<p class="share-code" aria-label="공유 코드">${esc(fmtCode(t.shareCode))}</p>
+      <div class="share-btns"><button class="btn small primary" data-invite>초대 보내기</button><button class="btn small ghost" data-unshare>코드 끄기</button></div>
+      <p class="hint">받은 사람이 홈 화면의 <b>코드로 참여</b>에 이 코드를 넣으면 이 여행만 함께 보고 기록할 수 있어요. 다른 여행은 보이지 않아요. 다 초대했으면 코드를 꺼 두세요.</p>`
+      : `<button class="btn small" data-share>공유 코드 만들기</button><p class="hint">코드를 받은 사람은 이 여행만 함께 보고 기록할 수 있어요.</p>`)
+    : `<p class="hint">${esc(name(t.owner))}님이 만든 여행에 함께하고 있어요.</p>`}</div>`;
+}
+function bindShare(t, root) {
+  const reopen = () => { const x = cur(); if (x) sheetTrip(x); };   // 열린 시트 내용만 새로 그림
+  const sync = (k, v) => { t[k] = v; const x = cur(); if (x) x[k] = v; };
+  const sh = $('[data-share]', root);
+  if (sh) sh.onclick = async () => {
+    sh.disabled = true; sh.textContent = '만드는 중…';
+    try {
+      const me = S.user.nick;   // 함께 쓰면 '나'가 누군지 헷갈리니 내 별명으로 바꿔 둔다
+      if (me && t.members.includes('나') && !t.members.includes(me)) { renameMember(t, '나', me); Store.save(t); }
+      sync('shareCode', await window.TN.share(t)); reopen();
+    } catch (e) { toast(shareMsg(e)); sh.disabled = false; sh.textContent = '공유 코드 만들기'; }
+  };
+  const inv = $('[data-invite]', root);
+  if (inv) inv.onclick = async () => {
+    const text = `여행노트에서 '${t.name}' 같이 기록해요!\n1. ${location.origin + location.pathname} 에서 가입·로그인\n2. 홈 화면 '코드로 참여'에 ${fmtCode(t.shareCode)} 입력`;
+    if (navigator.share) { try { await navigator.share({ text }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+    navigator.clipboard.writeText(text).then(() => toast('초대 문구를 복사했어요. 카톡에 붙여넣어 보내세요.'), () => toast('복사하지 못했어요'));
+  };
+  const un = $('[data-unshare]', root);
+  if (un) un.onclick = () => armConfirm(un, '한 번 더 누르면 코드 끄기', async () => {
+    try { await window.TN.unshare(t); sync('shareCode', ''); reopen(); toast('코드를 껐어요. 이미 함께하는 사람은 그대로예요.'); } catch (e) { toast(shareMsg(e)); }
+  });
+  $$('[data-kick]', root).forEach(b => { b.onclick = () => armConfirm(b, '한 번 더 누르면 내보내기', async () => {
+    try { await window.TN.kick(t.id, b.dataset.kick); sync('uids', (t.uids || []).filter(u => u !== b.dataset.kick)); reopen(); toast('내보냈어요'); } catch (e) { toast(shareMsg(e)); }
+  }); });
+  const lv = $('[data-leave]', root);
+  if (lv) lv.onclick = () => armConfirm(lv, '한 번 더 누르면 나가기', async () => {
+    try { await window.TN.leave(t.id); delete S.trips[t.id]; S.tripId = null; savePrefs(); closeSheet(); render(); toast('여행에서 나왔어요'); } catch (e) { toast(shareMsg(e)); }
+  });
+}
+function joinTripSheet() {
+  openSheet(sheetHead('코드로 참여') + `<p class="hint" style="margin-top:6px">함께 갈 사람에게 받은 공유 코드 6자리를 넣어 주세요.</p>
+  <div class="fld"><label for="j-code">공유 코드</label><input id="j-code" class="code-in" maxlength="7" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="예: K7M-2QX"></div>
+  <div class="sheet-foot"><button class="btn primary" data-join>참여하기</button></div>`, root => {
+  const btn = $('[data-join]', root), inp = $('#j-code', root);
+  const go = async () => {
+    const code = inp.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (code.length !== 6) { toast('코드 6자리를 확인해 주세요.'); inp.focus(); return; }
+    btn.disabled = true; btn.textContent = '참여하는 중…';
+    try {
+      const id = await window.TN.join(code);
+      for (let i = 0; i < 60 && !S.trips[id]; i++) await new Promise(r => setTimeout(r, 100)); // 여행이 들어올 때까지
+      const t = S.trips[id];
+      if (t) { normTrip(t); if (S.user.nick && !t.members.includes(S.user.nick)) { t.members = [...t.members, S.user.nick]; Store.save(t); } }
+      S.tripId = id; S.tab = 'plan'; savePrefs(); closeSheet(); render(); toast(t ? `'${t.name}' 여행에 함께하게 됐어요` : '참여했어요');
+    } catch (e) {
+      const c = (e && e.code) || '';
+      toast(c === 'not_found' ? '코드를 찾을 수 없어요. 다시 확인해 주세요.' : c === 'already' ? '이미 함께하는 여행이에요.'
+        : /permission/.test(c) ? '코드가 꺼졌거나 바뀌었어요. 만든 사람에게 새 코드를 받아 주세요.' : shareMsg(e));
+      btn.disabled = false; btn.textContent = '참여하기';
+    }
+  };
+  btn.onclick = go; inp.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) go(); }; inp.focus();
   });
 }
 
@@ -1931,6 +2022,8 @@ const dragEnd = e => {
 };
 document.addEventListener('pointerup', dragEnd);
 document.addEventListener('pointercancel', dragEnd);
+
+ACT.joinTrip = joinTripSheet;
 
 // ===== 로그인 =====
 function loginHtml() {

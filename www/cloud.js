@@ -36,20 +36,31 @@
 
   // ----- 여행 저장: 목록은 항목 id별로 저장해서 여러 사람이 동시에 써도 서로 덮어쓰지 않게 -----
   const LISTS = ['exchanges', 'expenses', 'plans', 'notes', 'checklist', 'diary', 'flights', 'stays'];
-  const SERVER = ['id', 'owner', 'members', 'names', 'shareCode', 'joinKey']; // 앱 저장 때 건드리지 않는 칸
+  // 서버 칸: members = 들어올 수 있는 계정 아이디 목록(앱에서는 t.uids), people = 정산용 '함께 가는 사람'(앱에서는 t.members)
+  const APP_SKIP = ['id', 'owner', 'uids', 'names', 'shareCode', 'joinKey'];   // 앱이 저장하지 않는 칸
+  const SERVER = ['members', 'owner', 'names', 'shareCode', 'joinKey'];        // 바뀐 칸 계산에서 빼는 서버 칸
   const ID = /^[A-Za-z_][A-Za-z0-9_]*$/;
   const toDoc = t => {
     const d = {};
     for (const k of Object.keys(t)) {
-      if (SERVER.includes(k)) continue;
+      if (APP_SKIP.includes(k)) continue;
+      if (k === 'members') { if (t.members) d.people = t.members; continue; }
       if (LISTS.includes(k)) { d[k] = {}; for (const x of t[k] || []) { if (!ID.test(x.id || '')) x.id = k[0] + '_' + gen(12); d[k][x.id] = x; } }
       else d[k] = t[k];
     }
     return clone(d);
   };
-  const fromDoc = (id, d) => {
-    const t = { ...clone(d), id };
+  const fromDoc = (id, d, raw) => {
+    const t = { ...clone(d), id }; delete t.members; delete t.people;
+    t.uids = d.members || [];
     for (const k of LISTS) { const m = t[k] || {}; t[k] = Array.isArray(m) ? m : Object.keys(m).sort().map(i => m[i]); }
+    if (Array.isArray(d.people)) t.members = clone(d.people);
+    else if (!raw) {
+      // 예전 버전에서 '낸 사람'에 계정 아이디가 들어간 기록을 '나'로 되돌리고, 함께 가는 사람을 기록에서 다시 모은다
+      const fix = n => t.uids.includes(n) ? '나' : n;
+      for (const x of t.expenses) { if (x.payer) x.payer = fix(x.payer); if (Array.isArray(x.split)) x.split = [...new Set(x.split.map(fix))]; }
+      t.members = [...new Set(['나', ...t.expenses.flatMap(x => [x.payer, ...(x.split || [])]).filter(Boolean)])];
+    }
     return t;
   };
   // 키 순서와 상관없이 비교
@@ -75,7 +86,7 @@
   const pend = new Map(), inflight = new Set(), latest = new Map();
   let unsub = null, onUp = null, onRm = null;
   function stopWatch() { if (unsub) { unsub(); unsub = null; } latest.clear(); }
-  function apply(id, d) { const t = fromDoc(id, d); origin.set(t, toDoc(t)); onUp && onUp(id, t); }
+  function apply(id, d) { const t = fromDoc(id, d); origin.set(t, toDoc(fromDoc(id, d, true))); onUp && onUp(id, t); }
   TN.watch = (up, rm, first) => {
     stopWatch(); onUp = up; onRm = rm; let firstDone = false;
     unsub = trips.where('members', 'array-contains', TN.user.uid).onSnapshot(snap => {
@@ -115,10 +126,50 @@
   }
   function flushAll() { for (const [id, p] of pend) { clearTimeout(p.tm); flush(id); } }
   TN.flushAll = flushAll;
-  TN.remove = async id => {
+  TN.remove = async (id, code) => {
     const p = pend.get(id); if (p) { clearTimeout(p.tm); pend.delete(id); }
+    if (code) shares.doc(code).delete().catch(() => {});
     try { await ok(trips.doc(id).delete()); } catch { say('삭제하지 못했어요. 다시 시도해 주세요.'); }
   };
+
+  // ----- 여행별 공유: 공유 코드(shares/코드 → 여행)로 참여 -----
+  const shares = fs.collection('shares');
+  const coded = c => { const e = new Error(c); e.code = c; return e; };
+  // 인터넷이 필요한 작업: 10초 안에 안 되면 실패로 본다
+  const until = (p, ms = 10000) => Promise.race([p.catch(e => { throw norm(e); }), new Promise((_, no) => setTimeout(() => no(coded('timeout')), ms))]);
+  async function flushNow(id) {
+    const p = pend.get(id); if (p) { clearTimeout(p.tm); await flush(id); }
+    for (let i = 0; i < 100 && inflight.has(id); i++) await new Promise(r => setTimeout(r, 100));
+  }
+  const newCode = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), b => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');
+  TN.share = async t => {
+    await flushNow(t.id);
+    for (let i = 0; i < 5; i++) {
+      const code = newCode();
+      try { await until(shares.doc(code).set({ trip: t.id, owner: TN.user.uid, at: Date.now() })); }
+      catch (e) { if (e.code === 'permission_denied' && i < 4) continue; throw e; } // 이미 쓰는 코드면 다시 뽑기
+      await until(trips.doc(t.id).update({ shareCode: code }));
+      if (t.shareCode) shares.doc(t.shareCode).delete().catch(() => {});
+      return code;
+    }
+  };
+  TN.unshare = async t => {
+    if (!t.shareCode) return;
+    await until(trips.doc(t.id).update({ shareCode: '' }));
+    shares.doc(t.shareCode).delete().catch(() => {});
+  };
+  TN.join = async raw => {
+    const code = String(raw).toUpperCase().replace(/[^A-Z0-9]/g, ''), u = TN.user;
+    const s = await until(shares.doc(code).get());
+    if (!s.exists) throw coded('not_found');
+    const id = s.data().trip;
+    const mine = await trips.doc(id).get().then(x => x.exists, () => false); // 읽히면 이미 멤버
+    if (mine) throw coded('already');
+    await until(trips.doc(id).update({ members: FV.arrayUnion(u.uid), ['names.' + u.uid]: u.nick, joinKey: code }));
+    return id;
+  };
+  TN.leave = id => until(trips.doc(id).update({ members: FV.arrayRemove(TN.user.uid) }));
+  TN.kick = (id, uid) => until(trips.doc(id).update({ members: FV.arrayRemove(uid) }));
 
   // ----- 첨부(사진·PDF): 여행 멤버만 볼 수 있게 여행 id를 함께 저장 -----
   const cache = new Map(), loading = new Set(); let tm;
