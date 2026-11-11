@@ -380,6 +380,89 @@ body.dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
 .share-code{font-size:1.6rem;font-weight:700;letter-spacing:.12em;margin:4px 0 8px;color:var(--green)}
 .share-btns{display:flex;flex-wrap:wrap;gap:8px}
 .code-in{font-size:1.3rem;letter-spacing:.14em;text-transform:uppercase}
+
+/* ===== 디자인: 노선도 — 일정은 지하철 노선처럼 굵게, 나머지는 얇은 선과 흰 면으로 조용하게 ===== */
+:root{--paper:#F2F4F3;--surface:#FFFFFF;--surface-2:#E8ECEA;--ink:#15201C;--ink-2:#5A6661;--line:#DCE2DF;--r:12px;--sh:none}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--paper:#0F1412;--surface:#171F1C;--surface-2:#202A26;--ink:#E4EBE7;--ink-2:#98A6A0;--line:#2A3531}}
+:root[data-theme="dark"]{--paper:#0F1412;--surface:#171F1C;--surface-2:#202A26;--ink:#E4EBE7;--ink-2:#98A6A0;--line:#2A3531}
+body{background:var(--paper)}
+/* 홈 */
+.home-head{padding:34px 0 20px}
+.home-head h1{background:none;color:var(--ink);-webkit-text-fill-color:currentColor;font-size:2rem;font-weight:700;letter-spacing:-.035em}
+.trip-card{box-shadow:none;border:1px solid var(--line);border-radius:var(--r);padding:16px 16px 14px}
+.trip-card .dd{background:none;padding:0;font-size:.95rem;color:var(--green)}
+.trip-card .tc-sum{font-weight:600;color:var(--ink-2)}
+.tc-ppl{margin-left:10px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);font-size:.78rem;color:var(--ink-2)}
+/* 버튼·입력 */
+.btn{border-radius:12px}
+.btn.primary{box-shadow:none}
+.btn.small{border-radius:10px}
+.seg{border-radius:12px;background:var(--surface-2)}
+.seg button{border-radius:9px}
+.seg button[aria-pressed="true"],.seg button[aria-selected="true"]{box-shadow:none;outline:1px solid var(--line)}
+.fld input,.fld select,.fld textarea{border-radius:10px}
+/* 여행 상단 안내: 한 줄 */
+.info-strip{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 14px;background:var(--surface);color:var(--ink);border:1px solid var(--line);box-shadow:none;border-radius:var(--r);padding:12px 16px}
+.info-strip b{font-weight:700}
+.info-strip .muted{color:var(--ink-2);opacity:1;font-size:.9rem}
+/* 아래 탭바: 화면 아래에 붙는 바 */
+#app{padding-bottom:104px}
+.tabs{left:0;right:0;bottom:0;max-width:none;margin:0;border-radius:0;padding:0 0 env(safe-area-inset-bottom,0px);box-shadow:none;border-top:1px solid var(--line)}
+.tabs button{border-radius:0;min-height:58px}
+.tabs button[aria-current="page"]{background:none;color:var(--ink)}
+.tabs button[aria-current="page"]::after{display:block;left:34%;right:34%;height:3px;background:var(--green)}
+/* 예약: 한 묶음 목록 */
+.books{gap:0;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);overflow:hidden}
+.books .book+.book,.books .book+.book-add{border-top:1px solid var(--line)}
+.book-main{box-shadow:none;border:0;border-radius:0;background:none;padding:12px 14px}
+.book .tl-links,.book .thumbs{padding:0 14px 12px 52px}
+.book-add{padding:4px 8px}
+.book-add .btn{border:0;background:none;color:var(--green);padding:0 8px}
+/* 날짜 바: 호선 표시 */
+.day-bar{box-shadow:0 1px 0 var(--line);gap:8px;padding:8px 16px}
+.day-bar button{min-height:40px;min-width:0;display:flex;align-items:center;gap:7px;padding:0 13px 0 5px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.day-bar button.all{padding:0 15px}
+.day-bar b{font-size:.92rem;color:inherit}
+.dc-badge{width:28px;height:28px;border-radius:50%;background:var(--dc);color:#fff;font-style:normal;font-weight:700;font-size:.9rem;display:grid;place-items:center;flex:none}
+.dc-txt{font-size:.88rem;font-weight:600;white-space:nowrap}
+.dc-txt small{margin-left:3px;font-size:.78rem;font-weight:500;color:var(--ink-2)}
+.day-bar button[aria-pressed="true"]{border-color:var(--dc);background:color-mix(in srgb,var(--dc) 12%,var(--surface));color:var(--ink);box-shadow:inset 0 0 0 1px var(--dc)}
+.day-bar button[aria-pressed="true"] b,.day-bar button[aria-pressed="true"] small{color:inherit}
+/* 일정: 노선도 */
+.plan-day{margin-top:26px}
+.plan-day header{flex-wrap:wrap;row-gap:2px}
+.plan-day h3{white-space:nowrap}
+.timeline{border-left:0;padding:2px 0 0 34px;position:relative}
+.timeline::before{content:"";position:absolute;left:13px;top:16px;bottom:22px;width:5px;border-radius:3px;background:var(--dc,var(--green))}
+.timeline li{padding:0 0 8px}
+.timeline li::before{left:-27px;top:11px;width:16px;height:16px;background:var(--surface);border:3px solid var(--dc,var(--green))}
+.timeline li[data-no]::before{left:-31px;top:7px;width:24px;height:24px;border:3px solid var(--dc,var(--green));background:var(--dc,var(--green));color:#fff;font-size:.74rem}
+.timeline li.ev::before{border-color:var(--card);box-shadow:0 0 0 3px var(--paper),0 0 0 5px var(--card)}
+.tl-main,.plan-day .tl-main,.timeline li.ev .tl-main{background:none;border:0;border-radius:10px;box-shadow:none;padding:6px 8px 4px;gap:1px}
+.tl-main:active{background:var(--surface-2)}
+.tl-time{color:var(--dc,var(--green));font-weight:700;font-size:.8rem}
+.timeline li.ev .tl-time{color:var(--card)}
+.tl-title{font-size:1rem;font-weight:600}
+.tl-links{padding:2px 0 6px 6px;gap:6px}
+.tl-links a{background:none;border:1px solid var(--line);color:var(--ink);padding:3px 10px;font-size:.82rem}
+.tl-links a.sub{color:var(--ink-2)}
+.timeline li.dragging .tl-main{background:var(--surface);box-shadow:0 12px 28px rgba(0,0,0,.2)}
+.gmap-slot{border-radius:var(--r);border:1px solid var(--line)}
+.day-foot a{background:none;border:1px solid var(--line);color:var(--card)}
+/* 가계부 */
+.badge{background:none;padding:0;border-radius:0;font-weight:600;display:inline-flex;align-items:center;gap:5px}
+.badge::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.kinds div{border-radius:10px}
+.day header{border-bottom:1px solid var(--ink)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .tl-time{color:color-mix(in srgb,var(--dc,var(--green)) 60%,#fff)}}
+:root[data-theme="dark"] .tl-time{color:color-mix(in srgb,var(--dc,var(--green)) 60%,#fff)}
+.row-detail{display:flex;align-items:flex-start;gap:10px;padding:0 0 12px 40px}
+.rd-body{flex:1;min-width:0;display:grid;gap:6px}
+.rd-body .calc{margin:0}
+.rd-body:empty{display:none}
+.row-detail:has(.rd-body:empty){justify-content:flex-end}
+.rd-edit{flex:none;width:38px;height:38px;margin-top:-4px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);display:grid;place-items:center}
+.rd-edit svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round;stroke-linecap:round}
 </style>
 </head>
 <body>
@@ -560,7 +643,7 @@ const clone = o => JSON.parse(JSON.stringify(o));
 function nf(n, dec = 0) { return (Number(n) || 0).toLocaleString('ko-KR', { maximumFractionDigits: dec }); }
 function money(n, cur) { const c = ci(cur); return nf(n, c.dec) + c.unit; }
 function won(n) { return nf(n, 0) + '원'; }
-function rateText(rate, per, cur) { return `${nf(per)}${ci(cur).unit} = ${nf(rate, 4)}원`; }
+function rateText(rate, per, cur) { return `${nf(per)}${ci(cur).unit} = ${nf(rate, 2)}원`; }
 function parseNum(v) { if (v == null) return NaN; const s = String(v).replace(/[,\s원]/g, ''); return s === '' ? NaN : Number(s); }
 function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function today() { return iso(new Date()); }
@@ -719,12 +802,12 @@ function render() {
 function homeHtml() {
   const list = Object.values(S.trips).map(normTrip).sort((a, b) => (b.start || '').localeCompare(a.start || '') || b.createdAt - a.createdAt);
   return `<header class="home-head"><h1>여행노트</h1>
-    <p>환전해 둔 돈은 환전한 날의 환율로, 카드처럼 바로 결제한 돈은 결제일 환율로 원화를 계산해요.</p></header>
+    <p>여행 일정과 지도, 쓴 돈을 한곳에 기록해요.</p></header>
     <div class="home-acts"><button class="btn primary" data-act="newTrip">새 여행 만들기</button>${Store.mode === 'db' ? '<button class="btn" data-act="joinTrip">코드로 참여</button>' : ''}</div>
     ${list.length ? `<ul class="trip-list">${list.map(t => {
       const L = computeLedger(t);
       return `<li><button class="trip-card" data-act="openTrip" data-id="${t.id}"><span class="tc-name">${esc(t.name)}</span><span class="dd">${esc(dday(t))}</span>
-        <span class="tc-date">${fmtRange(t)}${(t.uids || []).length > 1 ? ` · 👥 ${t.uids.length}명` : ''}</span><span class="tc-sum">${won(L.total)} 사용</span></button></li>`;
+        <span class="tc-date">${fmtRange(t)}${(t.uids || []).length > 1 ? `<span class="tc-ppl">함께 ${t.uids.length}명</span>` : ''}</span><span class="tc-sum">${won(L.total)} 사용</span></button></li>`;
     }).join('')}</ul>`
     : `<div class="empty">아직 만든 여행이 없어요. 여행을 만들고 환전과 지출을 기록해 보세요.<br>
        <button class="btn" data-act="demo">예시 여행 열어보기</button></div>`}
@@ -817,14 +900,14 @@ function expRow(t, L, x) {
     <span class="row-txt"><span class="row-title">${esc(x.memo || x.cat || '지출')}</span>
       <span class="row-meta"><span class="badge b-${r.kind}">${kindLabel(x, r)}</span>${x.time ? `<span>${esc(x.time)}</span>` : ''}${t.members.length > 1 ? `<span>${esc(x.payer || t.members[0])} 결제</span>` : ''}${r.short ? '<span class="warn-t">잔액 부족</span>' : ''}${(x.photos || []).length ? '<span>📎</span>' : ''}</span></span>
     <span class="row-amt">${x.cur !== t.home ? `<span class="fx">${money(x.amount, x.cur)}</span>` : ''}<span class="krw">${won(r.krw)}</span></span></button>
-    ${open ? `<div class="row-detail">${breakdownHtml(x, r)}${x.note ? `<p class="tl-memo" style="margin-top:8px">${esc(x.note)}</p>` : ''}${(x.photos || []).length ? `<div class="thumbs">${thumbsHtml(x.photos)}</div>` : ''}
-      <div class="row-btns"><button class="btn small" data-act="editExp" data-id="${x.id}">수정</button></div></div>` : ''}</li>`;
+    ${open ? `<div class="row-detail"><div class="rd-body">${breakdownHtml(x, r)}${x.note ? `<p class="tl-memo">${esc(x.note)}</p>` : ''}${(x.photos || []).length ? `<div class="thumbs">${thumbsHtml(x.photos)}</div>` : ''}</div>
+      <button class="rd-edit" data-act="editExp" data-id="${x.id}" aria-label="수정"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg></button></div>` : ''}</li>`;
 }
 function breakdownHtml(x, r) {
-  if (r.kind === 'home') return `<p class="calc">원화로 결제했어요.</p>`;
+  if (r.kind === 'home') return '';
   if (r.kind === 'live') return r.manual
-    ? `<p class="calc">청구된 원화 <b>${won(r.krw)}</b> <span class="muted">(${rateText(r.rate, r.per, x.cur)}꼴)</span></p>`
-    : `<p class="calc">${money(x.amount, x.cur)} → <b>${won(r.krw)}</b> <span class="muted">(결제일 환율 ${rateText(r.rate, r.per, x.cur)})</span></p>`;
+    ? `<p class="calc">청구된 원화 그대로 <span class="muted">(${rateText(r.rate, r.per, x.cur)}꼴)</span></p>`
+    : `<p class="calc">결제일 환율 ${rateText(r.rate, r.per, x.cur)}</p>`;
   return `<ul class="calc-list">${r.parts.map(p => `<li>${p.short ? '<span class="warn-t">환전 잔액 부족분</span>' : `${fmtShort(p.date)} 환전분`} ${money(p.amount, x.cur)} → <b>${won(p.krw)}</b> <span class="muted">(${rateText(p.rate, p.per, x.cur)})</span></li>`).join('')}</ul>
     ${r.parts.length > 1 ? `<p class="calc">합계 ${r.parts.map(p => nf(p.krw)).join(' + ')} = <b>${won(r.krw)}</b></p>` : ''}`;
 }
@@ -933,7 +1016,7 @@ async function planMap(t) {
     const dates = planDates(t), scope = S.pday === 'all' ? dates : [S.pday];
     gmShow([
       ...t.stays.filter(s => s.lat != null && scope.some(d => stayOn(t, d).includes(s))).map(s => ({ id: s.id, lat: s.lat, lng: s.lng, label: '🏨', cls: 'stay', free: true, title: s.name, onClick: go(`[data-book="${s.id}"]`) })),
-      ...scope.flatMap(d => dayPlans(t, d).filter(p => p.lat != null).map((p, i) => ({ id: p.id, lat: p.lat, lng: p.lng, label: String(i + 1), grp: d, color: dayColor(dates, d), title: p.place || p.title, onClick: go(`[data-plan="${p.id}"]`) }))),
+      ...scope.flatMap(d => dayPlans(t, d).filter(p => p.lat != null).map((p, i) => ({ id: p.id, lat: p.lat, lng: p.lng, label: String(i + 1), grp: d, color: dayColor(tripDays(t), d), title: p.place || p.title, onClick: go(`[data-plan="${p.id}"]`) }))),
     ]);
   } catch { if (slot.isConnected) slot.innerHTML = '<p class="hint">지도를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>'; }
 }
@@ -956,15 +1039,16 @@ function placePlan(t, rec, old) {
   list.splice(at, 0, rec); list.forEach((p, n) => { p.ord = n; });
 }
 const DAYC = ['#1F6F5C', '#C0612B', '#7A4FB0', '#2B8A99', '#B23A72', '#8A6A1F', '#4F7A28'];
-const dayColor = (dates, d) => DAYC[Math.max(0, dates.indexOf(d)) % DAYC.length];
+const dayColor = (days, d) => { const i = days.indexOf(d); return i >= 0 ? DAYC[i % DAYC.length] : '#7A8580'; };
 // 날짜 바: [전체] [1일 11.27 금] … (일정·가계부 공용, act로 어느 탭인지 구분)
 const dateSort = (a, b) => (a === '') - (b === '') || a.localeCompare(b);
 function dayBarHtml(dates, days, sel, act) {
   if (!dates.length) return '';
   const label = d => { const i = days.indexOf(d); return i >= 0 ? `${i + 1}일` : d ? '기타' : '미정'; };
   return `<div data-daytop></div><nav class="day-bar" aria-label="날짜 고르기">
-    <button type="button" data-act="${act}" data-v="all" aria-pressed="${sel === 'all'}" style="--dc:#34433E"><b>전체</b><small>${dates.length}일</small></button>
-    ${dates.map(d => `<button type="button" data-act="${act}" data-v="${esc(d)}" aria-pressed="${sel === d}" style="--dc:${dayColor(dates, d)}"><b><i class="dc-dot" aria-hidden="true"></i>${label(d)}</b><small>${d ? `${esc(fmtShort(d))} ${WD[pd(d).getDay()]}` : '날짜 없음'}</small></button>`).join('')}</nav>`;
+    <button type="button" class="all" data-act="${act}" data-v="all" aria-pressed="${sel === 'all'}" style="--dc:var(--ink)"><b>전체</b></button>
+    ${dates.map(d => { const i = days.indexOf(d); return `<button type="button" data-act="${act}" data-v="${esc(d)}" aria-pressed="${sel === d}" aria-label="${label(d)} ${d ? esc(fmtDay(d)) : '날짜 없음'}" style="--dc:${dayColor(days, d)}">
+      <i class="dc-badge" aria-hidden="true">${i >= 0 ? i + 1 : d ? '+' : '?'}</i><span class="dc-txt">${d ? `${esc(fmtShort(d))}<small>${WD[pd(d).getDay()]}</small>` : '미정'}</span></button>`; }).join('')}</nav>`;
 }
 // 일정 탭의 날짜들: 여행 날짜 + 일정·항공편·숙소 날짜 ('날짜 없음'은 맨 뒤)
 function planDates(t) {
@@ -1031,9 +1115,7 @@ function tabPlan(t) {
   const n = t.start ? daysBetween(today(), t.start) : null;
   const now = today() + ' ' + new Date().toTimeString().slice(0, 5);
   const nf = t.flights.filter(f => f.date && `${f.date} ${f.time || '23:59'}` >= now).sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))[0];
-  const info = t.start ? `<div class="info-strip"><span class="big-d" style="grid-row:span ${nf ? 3 : 2}">${esc(dday(t))}</span>
-      <span>${n > 0 ? `출발까지 ${n}일 남았어요` : n === 0 ? '오늘 출발해요' : today() <= (t.end || t.start) ? '여행 중이에요' : '다녀온 여행이에요'}</span>
-      <span class="muted">${t.tz && t.tz !== 'Asia/Seoul' ? `${esc(tzLabel(t.tz))} ${gapText(t.tz)}` : fmtRange(t)}</span>
+  const info = t.start ? `<div class="info-strip"><b>${n > 0 ? `출발까지 ${n}일 남았어요` : n === 0 ? '오늘 출발해요' : today() <= (t.end || t.start) ? '여행 중이에요' : '다녀온 여행이에요'}</b>
       ${nf ? `<span class="muted">✈️ 다음 비행기 ${esc(fmtShort(nf.date))} ${esc(nf.time)}${nf.no ? ` ${esc(nf.no)}` : ''}</span>` : ''}</div>`
     : `<p class="empty">여행 날짜를 <button class="link" data-act="tripSettings">여행 설정</button>에서 정하면 날짜별 일정표가 만들어져요.</p>`;
   const bar = dayBarHtml(dates, days, S.pday, 'pday');
@@ -1056,8 +1138,8 @@ function tabPlan(t) {
     const ev = (time, edge, id, act, title, sub) => ({ time, edge, html: `<li class="ev"><button class="tl-main" data-act="${act}" data-id="${id}">${time ? `<span class="tl-time">${esc(time)}</span>` : ''}<span class="tl-title">${esc(title)}</span>${sub ? `<span class="tl-memo">${esc(sub)}</span>` : ''}</button></li>` });
     // 항공편·체크인/아웃은 시간 있는 일정 사이 제자리에 끼운다 (시간 없는 체크아웃은 맨 앞, 체크인은 맨 뒤)
     const evs = [...t.flights.filter(f => f.date === d).map(f => ev(f.time, '', f.id, 'editFlight', `✈️ ${flightTitle(f)}`, f.arrTime ? `${f.arrTime} 도착` : '')),
-      ...t.stays.filter(s => s.outDate === d).map(s => ev(s.outTime, 'first', s.id, 'editStay', `🏨 체크아웃 · ${s.name || '숙소'}`, '')),
-      ...t.stays.filter(s => s.inDate === d).map(s => ev(s.inTime, 'last', s.id, 'editStay', `🏨 체크인 · ${s.name || '숙소'}`, ''))].sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
+      ...t.stays.filter(s => s.outDate === d).map(s => ev(s.outTime, 'first', s.id, 'editStay', `🏨 ${s.name || '숙소'} 체크아웃`, '')),
+      ...t.stays.filter(s => s.inDate === d).map(s => ev(s.inTime, 'last', s.id, 'editStay', `🏨 ${s.name || '숙소'} 체크인`, ''))].sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
     const rows = items.map((p, i) => ({ time: p.time, html: planRow(p, i) }));
     for (const e of mv ? [] : evs) {
       let i;
@@ -1069,7 +1151,7 @@ function tabPlan(t) {
       rows.splice(i, 0, { time: e.time, html: e.html });
     }
     const night = stayOn(t, d).find(s => s.lat != null && d < (s.outDate || s.inDate));
-    return `<section class="plan-day" style="--dc:${dayColor(dates, d)}"><header><h3>${idx >= 0 ? `${idx + 1}일차` : (d ? '기타 날짜' : '날짜 없음')}<span>${d ? fmtDay(d) : ''}</span></h3>
+    return `<section class="plan-day" style="--dc:${dayColor(days, d)}"><header><h3>${idx >= 0 ? `${idx + 1}일차` : (d ? '기타 날짜' : '날짜 없음')}<span>${d ? fmtDay(d) : ''}</span></h3>
       <div class="pd-acts">${items.length > 1 ? `<button class="link" data-act="reorder" data-date="${esc(d)}">${mv ? '완료' : '순서 바꾸기'}</button>` : ''}${stops.length > 1 ? `<a href="${esc(routeLink(stops))}" target="_blank" rel="noopener">동선·거리 지도로 보기</a>` : ''}</div></header>
       ${mv ? '<p class="hint mv-hint">☰을 꾹 잡고 위아래로 끌어서 순서를 바꾸세요. 항공편·숙소는 시간에 맞춰 자동으로 들어가요.</p>' : ''}
       ${rows.length ? `<ul class="timeline">${rows.map(r => r.html).join('')}</ul>` : ''}
@@ -1197,7 +1279,7 @@ function bindSeg(root, field, onPick) {
   const el = $(`[data-seg="${field}"]`, root); if (!el) return;
   el.onclick = e => { const b = e.target.closest('button[data-v]'); if (!b) return; setSeg(root, field, b.dataset.v); onPick(b.dataset.v); };
 }
-const r4 = n => Math.round(n * 10000) / 10000;
+const r4 = n => Math.round(n * 10000) / 10000, r2 = n => Math.round(n * 100) / 100;
 function walletsFor(t, c) { const w = [...new Set(t.exchanges.filter(e => e.cur === c).map(e => e.wallet || '현금'))]; return w.length ? w : ['현금']; }
 function latestRate(t, c) {
   const lr = (t.lastRate || {})[c]; if (lr && lr.rate) return lr;
@@ -1234,7 +1316,7 @@ async function fixAutoRates(t) {
   let n = 0;
   for (const x of due) {
     const r = await fetchRate(x.cur, x.date);
-    if (r && r.date === x.date) { x.rate = r4(r.rate * (+x.per || defaultPer(x.cur))); x.rateDate = r.date; n++; }
+    if (r && r.date === x.date) { x.rate = r2(r.rate * (+x.per || defaultPer(x.cur))); x.rateDate = r.date; n++; }
   }
   if (n) { Store.save(t); render(); toast(`${n}건의 환율을 그날 환율로 바꿨어요`); }
 }
@@ -1309,7 +1391,7 @@ function sheetExpense(t, id) {
       const r = await fetchRate(d.cur, d.date);
       if (my !== rseq || manual) return;
       if (!r) { note('환율을 불러오지 못했어요. 직접 넣어 주세요.'); return; }
-      d.rate = r4(r.rate * d.per); d.rateSrc = 'auto'; d.rateDate = r.date; d.krw = '';
+      d.rate = r2(r.rate * d.per); d.rateSrc = 'auto'; d.rateDate = r.date; d.krw = '';
       rate.value = d.rate; krw.value = ''; preview();
       note(r.date === d.date ? `${fmtShort(r.date)} 환율을 자동으로 넣었어요.` : `${fmtShort(d.date)} 환율이 아직 없어서 ${fmtShort(r.date)} 환율을 넣었어요. 그날이 지나면 그날 환율로 자동으로 바뀌어요.`);
     };
@@ -1826,7 +1908,7 @@ function shareSecHtml(t) {
   if (Store.mode !== 'db' || !S.user) return '';
   const me = S.user.uid, own = tripOwner(t), name = u => (t.names || {})[u] || (u === me ? S.user.nick : '알 수 없음');
   return `<div class="sheet-sec"><h3>함께 쓰기</h3>
-    <ul class="mem-list">${(t.uids || [me]).map(u => `<li><span>${esc(name(u))}${u === me ? ' (나)' : ''}${u === t.owner ? ' · 만든 사람' : ''}</span>${own && u !== me ? `<button class="btn small ghost" data-kick="${esc(u)}">내보내기</button>` : ''}</li>`).join('')}</ul>
+    <ul class="mem-list">${(t.uids || [me]).map(u => `<li><span>${esc(name(u))}${u === me && u === t.owner ? ' (나, 만든 사람)' : u === me ? ' (나)' : u === t.owner ? ' (만든 사람)' : ''}</span>${own && u !== me ? `<button class="btn small ghost" data-kick="${esc(u)}">내보내기</button>` : ''}</li>`).join('')}</ul>
     ${own ? (t.shareCode ? `<p class="share-code" aria-label="공유 코드">${esc(fmtCode(t.shareCode))}</p>
       <div class="share-btns"><button class="btn small primary" data-invite>초대 보내기</button><button class="btn small ghost" data-unshare>코드 끄기</button></div>
       <p class="hint">받은 사람이 홈 화면의 <b>코드로 참여</b>에 이 코드를 넣으면 이 여행만 함께 보고 기록할 수 있어요. 다른 여행은 보이지 않아요. 다 초대했으면 코드를 꺼 두세요.</p>`
