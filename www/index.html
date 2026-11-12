@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>TripNote</title>
-<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#1F6F5C">
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#1B1A17" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-title" content="TripNote"><meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <script src="firebase-config.js"></script>
@@ -598,7 +598,7 @@ body{-webkit-font-smoothing:antialiased}
 .trip-head .th-main h1{font-size:1.2rem;font-weight:800;letter-spacing:-.02em}
 .icon-btn{color:var(--ink)}
 .home-head h1{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:-.03em}
-.home-head .mark{width:36px;height:36px;flex:none}
+.home-head .mark{width:42px;height:42px;flex:none}
 /* 분류 아이콘 */
 .cat{display:grid;place-items:center}
 .cat-ic{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:var(--cc);background:color-mix(in srgb,var(--cc) 14%,var(--surface))}
@@ -631,6 +631,23 @@ body{-webkit-font-smoothing:antialiased}
 .trip-card .tc-date{grid-column:1;padding:2px 16px 0;font-size:.9rem}
 .trip-card .tc-sum{grid-column:1;padding:10px 16px 16px;margin:0}
 .trip-card .dd{grid-column:2;grid-row:1/4;align-self:stretch;display:grid;place-items:center;border-left:1.5px dashed var(--line);font-size:1.3rem;font-weight:700;color:var(--green);padding:0 6px}
+
+/* ===== 빈티지 톤: 따뜻한 종이색 바탕, 올리브 그린·더스티 블루, 테라코타는 D-day·도착지에만 ===== */
+:root{--paper:#FFFFFF;--surface:#FAF8F4;--surface-2:#F1EEE8;--ink:#2E2B25;--ink-2:#6B665D;--line:#E8E3DA;
+  --green:#4F6D5A;--green-ink:#FFFCF5;--green-soft:#E3E9DD;--card:#40708F;--card-soft:#E0EAEF;--terra:#C86D51;--terra-ink:#A0503A;
+  --env:#EADFC8;--env-edge:#B89A6A;--env-ink:#4A3A22;--env-done:#EEE8DC;--warn:#A84B33;--warn-soft:#F4E0D7}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--paper:#1B1A17;--surface:#24221E;--surface-2:#2E2B26;--ink:#ECE5D8;--ink-2:#ADA393;--line:#3A362F;
+  --green:#93B49D;--green-ink:#1B1A17;--green-soft:#2C362E;--card:#8FB2C8;--card-soft:#243039;--terra:#E08C70;--terra-ink:#E08C70;
+  --env:#4A3F2C;--env-edge:#9C8257;--env-ink:#EEDFC0;--env-done:#2A2723;--warn:#E39A80;--warn-soft:#3A2620}}
+:root[data-theme="dark"]{--paper:#1B1A17;--surface:#24221E;--surface-2:#2E2B26;--ink:#ECE5D8;--ink-2:#ADA393;--line:#3A362F;
+  --green:#93B49D;--green-ink:#1B1A17;--green-soft:#2C362E;--card:#8FB2C8;--card-soft:#243039;--terra:#E08C70;--terra-ink:#E08C70;
+  --env:#4A3F2C;--env-edge:#9C8257;--env-ink:#EEDFC0;--env-done:#2A2723;--warn:#E39A80;--warn-soft:#3A2620}
+/* D-day는 테라코타 (도착지와 같은 색) */
+.dchip{background:color-mix(in srgb,var(--terra) 14%,var(--surface));color:var(--terra-ink)}
+/* 티켓: 홈 사이를 잇는 곧은 점선 */
+.trip-card .dd{border-radius:0;background:none;color:var(--terra);border-left:1.5px dashed color-mix(in srgb,var(--ink-2) 45%,transparent)}
+.calc-fab{background:var(--green);color:var(--green-ink)}
+.calc-fab[aria-expanded="true"]{background:var(--ink);color:var(--paper)}
 </style>
 </head>
 <body>
@@ -813,9 +830,9 @@ const IC = {
   back: svgI('<path d="M15 5l-7 7 7 7"/>'),
   gear: svgI('<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/>'),
 };
-const CAT_C = { 식비: '#D9762E', 카페: '#8A5A3B', 교통: '#2F6FB5', 숙박: '#6B4FB0', 쇼핑: '#C2457A', 관광: '#1F8A70', 기타: '#6B7570' };
+const CAT_C = { 식비: '#C86D51', 카페: '#8C6A4F', 교통: '#4A7C9B', 숙박: '#7B6A8F', 쇼핑: '#A8646F', 관광: '#4F7D6B', 기타: '#857C70' };
 const catIc = (c, sm) => `<span class="cat-ic${sm ? ' sm' : ''}" style="--cc:${CAT_C[c] || CAT_C.기타}">${IC[c] || IC.기타}</span>`;
-const MARK = '<svg class="mark" viewBox="0 0 1024 1024" aria-hidden="true"><rect width="1024" height="1024" rx="230" fill="#1F6F5C"/><path d="M292 716 C 292 560, 452 580, 512 512 S 732 452, 732 300" fill="none" stroke="#fff" stroke-width="70" stroke-linecap="round"/><circle cx="292" cy="716" r="64" fill="#1F6F5C" stroke="#fff" stroke-width="44"/><circle cx="732" cy="300" r="96" fill="#F4A259" stroke="#fff" stroke-width="34"/></svg>';
+const MARK = '<svg class="mark" viewBox="0 0 1024 1024" aria-hidden="true"><rect width="1024" height="1024" rx="230" fill="#4F6D5A"/><path d="M292 716 C 292 560, 452 580, 512 512 S 732 452, 732 300" fill="none" stroke="#FFFCF5" stroke-width="58" stroke-linecap="round"/><circle cx="292" cy="716" r="60" fill="#4F6D5A" stroke="#FFFCF5" stroke-width="38"/><circle cx="512" cy="512" r="40" fill="#4F6D5A" stroke="#FFFCF5" stroke-width="30"/><circle cx="732" cy="300" r="92" fill="#C86D51" stroke="#FFFCF5" stroke-width="30"/></svg>';
 const TZS = [['Asia/Seoul', '서울'], ['Asia/Tokyo', '일본'], ['Asia/Shanghai', '중국'], ['Asia/Taipei', '대만'], ['Asia/Hong_Kong', '홍콩/마카오'],
   ['Asia/Bangkok', '태국'], ['Asia/Ho_Chi_Minh', '베트남'], ['Asia/Manila', '필리핀'], ['Asia/Singapore', '싱가포르'], ['Asia/Kuala_Lumpur', '말레이시아'],
   ['Asia/Jakarta', '자카르타'], ['Asia/Makassar', '발리'], ['Pacific/Guam', '괌/사이판'], ['Asia/Dubai', '두바이'], ['Europe/Istanbul', '튀르키예'],
@@ -1118,7 +1135,7 @@ function breakdownHtml(x, r) {
 }
 function exRow(L, e) {
   const l = L.lots[e.id];
-  return `<li class="row ex"><button class="row-main" data-act="editEx" data-id="${e.id}"><span class="cat" aria-hidden="true"><span class="cat-ic" style="--cc:#A27A2C">${IC.swap}</span></span>
+  return `<li class="row ex"><button class="row-main" data-act="editEx" data-id="${e.id}"><span class="cat" aria-hidden="true"><span class="cat-ic" style="--cc:#A8834A">${IC.swap}</span></span>
     <span class="row-txt"><span class="row-title">${money(e.amount, e.cur)} 환전${e.wallet && e.wallet !== '현금' ? ` (${esc(e.wallet)})` : ''}</span>
       <span class="row-meta"><span>${rateText(l.rate, l.per, e.cur)}</span>${e.memo ? `<span>${esc(e.memo)}</span>` : ''}</span></span>
     <span class="row-amt"><span class="fx">${won(l.krwPaid)}</span><span class="krw">${money(l.remaining, e.cur)} 남음</span></span></button></li>`;
@@ -1243,7 +1260,7 @@ function placePlan(t, rec, old) {
   }
   list.splice(at, 0, rec); list.forEach((p, n) => { p.ord = n; });
 }
-const DAYC = ['#1F6F5C', '#C0612B', '#7A4FB0', '#2B8A99', '#B23A72', '#8A6A1F', '#4F7A28'];
+const DAYC = ['#4F6D5A', '#C86D51', '#4A7C9B', '#A8834A', '#7B6A8F', '#5E8C78', '#9A5C5C'];
 const dayColor = (days, d) => { const i = days.indexOf(d); return i >= 0 ? DAYC[i % DAYC.length] : '#7A8580'; };
 // 날짜 바: [전체] [1일 11.27 금] … (일정·가계부 공용, act로 어느 탭인지 구분)
 const dateSort = (a, b) => (a === '') - (b === '') || a.localeCompare(b);
