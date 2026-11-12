@@ -574,6 +574,63 @@ body.has-fab #app{padding-bottom:156px}
 .lc-bar i{display:block;height:100%;background:var(--green)}
 .lotc.done .lc-bar{visibility:hidden}
 .lc-rate{font-size:.74rem;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ===== 디자인: 승차권·노선도 — 이모지 대신 선 아이콘, 숫자는 자릿수 맞춤 ===== */
+:root{--num:inherit}
+body{-webkit-font-smoothing:antialiased}
+.i{width:1.1em;height:1.1em;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.2em}
+.icon-btn .i{width:24px;height:24px;vertical-align:0}
+.tl-title .i,.tl-links .i,.day-foot .i,.home-foot .i,.file-btn .i,.info-strip .i{margin-right:5px}
+/* 숫자는 표지판 숫자체 */
+.sum-total,.row-amt .fx,.row-amt .krw,.day header p,.tl-time,.dc-txt,.dc-badge,.lc-amt,.lc-top b,.calc-row input,.dchip,.trip-card .dd,.tc-date,.th-sub,.kinds dd,.clock b,.share-code,.b-val,.bk-t,.info-strip b{font-family:var(--num);font-variant-numeric:tabular-nums}
+.sum-total{font-size:1.75rem;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.row-amt .fx{font-size:1rem;font-weight:700}
+.row-amt .krw{font-size:.88rem}
+.row-amt .krw:only-child{font-size:1rem}
+.day header p{font-size:.92rem}
+.tl-time{font-size:.84rem}
+.dc-txt{font-size:.9rem}
+.lc-amt b{font-size:1.2rem}
+.calc-row input{font-size:1.35rem}
+.th-sub{font-size:.86rem}
+.dchip{font-size:.82rem;padding:1px 9px}
+/* 상단 */
+.trip-head .th-main h1{font-size:1.2rem;font-weight:800;letter-spacing:-.02em}
+.icon-btn{color:var(--ink)}
+.home-head h1{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:-.03em}
+.home-head .mark{width:36px;height:36px;flex:none}
+/* 분류 아이콘 */
+.cat{display:grid;place-items:center}
+.cat-ic{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:var(--cc);background:color-mix(in srgb,var(--cc) 14%,var(--surface))}
+.cat-ic .i{width:20px;height:20px;vertical-align:0}
+.cat-ic.sm{display:inline-grid;width:22px;height:22px;margin-right:6px;vertical-align:-6px}
+.cat-ic.sm .i{width:13px;height:13px}
+.chips button{display:inline-flex;align-items:center}
+.chips button[aria-pressed="true"] .cat-ic{background:rgba(255,255,255,.22);color:#fff}
+.bk-ic{display:grid;place-items:center;color:var(--card)}
+.bk-ic .i{width:24px;height:24px}
+/* 결제 종류: 상자 셋 대신 한 줄 */
+.kinds{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.kinds div,.kinds .k-live{border:0;border-radius:0;background:none;padding:10px 12px}
+.kinds div+div{border-left:1px solid var(--line)}
+.kinds dt{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.kinds dt::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--env-edge);flex:none}
+.kinds .k-live dt::before{background:var(--card)}
+.kinds div:last-child dt::before{background:var(--ink-2)}
+.kinds dd{font-size:1rem}
+/* 내역·통계·정산: 밑줄 탭 */
+.seg.sub{background:none;padding:0;gap:0;border-radius:0;border-bottom:1px solid var(--line);margin:22px 0 2px}
+.seg.sub button,.seg.sub button[aria-selected="true"]{border-radius:0;min-height:46px;background:none;box-shadow:none;outline:0;position:relative}
+.seg.sub button[aria-selected="true"]{color:var(--ink)}
+.seg.sub button[aria-selected="true"]::after{content:"";position:absolute;left:22%;right:22%;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:var(--ink)}
+/* 홈: 승차권 모양 여행 카드 (오른쪽 떼는 칸에 D-day) */
+.trip-card{display:grid;grid-template-columns:1fr 96px;grid-template-rows:auto auto auto;column-gap:0;padding:0;border:1px solid var(--line);
+  -webkit-mask:radial-gradient(circle 9px at calc(100% - 96px) 0,#0000 98%,#000) top/100% 51% no-repeat,radial-gradient(circle 9px at calc(100% - 96px) 100%,#0000 98%,#000) bottom/100% 51% no-repeat;
+  mask:radial-gradient(circle 9px at calc(100% - 96px) 0,#0000 98%,#000) top/100% 51% no-repeat,radial-gradient(circle 9px at calc(100% - 96px) 100%,#0000 98%,#000) bottom/100% 51% no-repeat}
+.trip-card .tc-name{grid-column:1;padding:16px 16px 0}
+.trip-card .tc-date{grid-column:1;padding:2px 16px 0;font-size:.9rem}
+.trip-card .tc-sum{grid-column:1;padding:10px 16px 16px;margin:0}
+.trip-card .dd{grid-column:2;grid-row:1/4;align-self:stretch;display:grid;place-items:center;border-left:1.5px dashed var(--line);font-size:1.3rem;font-weight:700;color:var(--green);padding:0 6px}
 </style>
 </head>
 <body>
@@ -738,6 +795,27 @@ function computeLedger(trip) {
 // ===== 기본 값 =====
 const CATS = ['식비', '카페', '교통', '숙박', '쇼핑', '관광', '기타'];
 const CAT_ICON = { 식비: '🍜', 카페: '☕', 교통: '🚃', 숙박: '🏨', 쇼핑: '🛍️', 관광: '🎟️', 기타: '🧾' };
+// 선 아이콘 (24px 격자, 선 굵기는 CSS)
+const svgI = d => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+const IC = {
+  식비: svgI('<path d="M4 12h16a8 8 0 0 1-16 0z"/><path d="M9 3.5l2 6M15.5 3l-2.5 6.5"/>'),
+  카페: svgI('<path d="M5 9h11v4.5a5.5 5.5 0 0 1-11 0z"/><path d="M16 10.5h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M8.5 3.5v2.5M12 3.5v2.5"/>'),
+  교통: svgI('<rect x="6" y="3" width="12" height="13.5" rx="3"/><path d="M6 10h12M9.5 20.5L8 22M14.5 20.5L16 22M9 13.3h.01M15 13.3h.01"/>'),
+  숙박: svgI('<path d="M3 6v13M3 15h18v4M21 15v-3a3 3 0 0 0-3-3h-7v6"/><circle cx="7" cy="11.5" r="1.8"/>'),
+  쇼핑: svgI('<path d="M5 8h14l-1.2 12.2a1 1 0 0 1-1 .8H7.2a1 1 0 0 1-1-.8z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/>'),
+  관광: svgI('<rect x="3" y="7" width="18" height="13" rx="3"/><circle cx="12" cy="13.5" r="3.5"/><path d="M9 7l1.5-3h3L15 7"/>'),
+  기타: svgI('<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>'),
+  swap: svgI('<path d="M4 8.5h14l-3.5-3.5M20 15.5H6l3.5 3.5"/>'),
+  plane: svgI('<path d="M12 2.8c.8 0 1.4.9 1.4 2v5l7 4.2v2l-7-2v4l2.1 1.6v1.7L12 20.4l-3.5.9v-1.7l2.1-1.6v-4l-7 2v-2l7-4.2v-5c0-1.1.6-2 1.4-2z"/>'),
+  pin: svgI('<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>'),
+  user: svgI('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
+  doc: svgI('<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>'),
+  back: svgI('<path d="M15 5l-7 7 7 7"/>'),
+  gear: svgI('<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/>'),
+};
+const CAT_C = { 식비: '#D9762E', 카페: '#8A5A3B', 교통: '#2F6FB5', 숙박: '#6B4FB0', 쇼핑: '#C2457A', 관광: '#1F8A70', 기타: '#6B7570' };
+const catIc = (c, sm) => `<span class="cat-ic${sm ? ' sm' : ''}" style="--cc:${CAT_C[c] || CAT_C.기타}">${IC[c] || IC.기타}</span>`;
+const MARK = '<svg class="mark" viewBox="0 0 1024 1024" aria-hidden="true"><rect width="1024" height="1024" rx="230" fill="#1F6F5C"/><path d="M292 716 C 292 560, 452 580, 512 512 S 732 452, 732 300" fill="none" stroke="#fff" stroke-width="70" stroke-linecap="round"/><circle cx="292" cy="716" r="64" fill="#1F6F5C" stroke="#fff" stroke-width="44"/><circle cx="732" cy="300" r="96" fill="#F4A259" stroke="#fff" stroke-width="34"/></svg>';
 const TZS = [['Asia/Seoul', '서울'], ['Asia/Tokyo', '일본'], ['Asia/Shanghai', '중국'], ['Asia/Taipei', '대만'], ['Asia/Hong_Kong', '홍콩/마카오'],
   ['Asia/Bangkok', '태국'], ['Asia/Ho_Chi_Minh', '베트남'], ['Asia/Manila', '필리핀'], ['Asia/Singapore', '싱가포르'], ['Asia/Kuala_Lumpur', '말레이시아'],
   ['Asia/Jakarta', '자카르타'], ['Asia/Makassar', '발리'], ['Pacific/Guam', '괌/사이판'], ['Asia/Dubai', '두바이'], ['Europe/Istanbul', '튀르키예'],
@@ -924,7 +1002,7 @@ function render() {
 
 function homeHtml() {
   const list = Object.values(S.trips).map(normTrip).sort((a, b) => (b.start || '').localeCompare(a.start || '') || b.createdAt - a.createdAt);
-  return `<header class="home-head"><h1>TripNote</h1>
+  return `<header class="home-head"><h1>${MARK}TripNote</h1>
     <p>여행 일정과 지도, 쓴 돈을 한곳에 기록해요.</p></header>
     <div class="home-acts"><button class="btn primary" data-act="newTrip">새 여행 만들기</button>${Store.mode === 'db' ? '<button class="btn" data-act="joinTrip">코드로 참여</button>' : ''}</div>
     ${list.length ? `<ul class="trip-list">${list.map(t => {
@@ -934,15 +1012,15 @@ function homeHtml() {
     }).join('')}</ul>`
     : `<div class="empty">아직 만든 여행이 없어요. 여행을 만들고 환전과 지출을 기록해 보세요.<br>
        <button class="btn" data-act="demo">예시 여행 열어보기</button></div>`}
-    <div class="home-foot"><button class="link" data-act="importBackup">백업 파일 불러오기</button>${Store.mode === 'db' ? `<button class="link" data-act="sync">👤 ${esc(S.user.nick || '내 계정')}</button><span>로그인한 기기 어디서나 같은 여행이 열려요.</span>` : `<button class="link" data-act="sync">☁️ 동기화</button><span>이 기기에만 저장돼요.</span>`}</div>`;
+    <div class="home-foot"><button class="link" data-act="importBackup">백업 파일 불러오기</button>${Store.mode === 'db' ? `<button class="link" data-act="sync">${IC.user}${esc(S.user.nick || '내 계정')}</button><span>로그인한 기기 어디서나 같은 여행이 열려요.</span>` : `<button class="link" data-act="sync">☁️ 동기화</button><span>이 기기에만 저장돼요.</span>`}</div>`;
 }
 
 function tripHead(t) {
   const showClock = t.tz && t.tz !== 'Asia/Seoul';
   return `<header class="trip-head">
-    <button class="icon-btn" data-act="home" aria-label="여행 목록">‹</button>
+    <button class="icon-btn" data-act="home" aria-label="여행 목록">${IC.back}</button>
     <div class="th-main"><h1>${esc(t.name)}</h1><p class="th-sub">${fmtRange(t)} ${dday(t) ? `<span class="dchip">${esc(dday(t))}</span>` : ''}</p></div>
-    <button class="icon-btn" data-act="tripSettings" aria-label="여행 설정">⚙</button></header>
+    <button class="icon-btn" data-act="tripSettings" aria-label="여행 설정">${IC.gear}</button></header>
     ${showClock ? `<p class="clock" data-clock="${esc(t.tz)}"></p>` : ''}`;
 }
 function tick() {
@@ -1023,7 +1101,7 @@ function kindLabel(x, r) { return r.kind === 'cash' ? (x.wallet && x.wallet !== 
 function expRow(t, L, x) {
   const r = L.exp[x.id], open = S.openExp === x.id;
   return `<li class="row ${open ? 'open' : ''}"><button class="row-main" data-act="toggleExp" data-id="${x.id}" aria-expanded="${open}">
-    <span class="cat" aria-hidden="true">${CAT_ICON[x.cat] || '🧾'}</span>
+    <span class="cat" aria-hidden="true">${catIc(x.cat)}</span>
     <span class="row-txt"><span class="row-title">${esc(x.memo || x.cat || '지출')}</span>
       <span class="row-meta"><span class="badge b-${r.kind}">${kindLabel(x, r)}</span>${x.time ? `<span>${esc(x.time)}</span>` : ''}${t.members.length > 1 ? `<span>${esc(x.payer || t.members[0])} 결제</span>` : ''}${r.short ? '<span class="warn-t">잔액 부족</span>' : ''}${(x.photos || []).length ? '<span>📎</span>' : ''}</span></span>
     <span class="row-amt">${x.cur !== t.home ? `<span class="fx">${money(x.amount, x.cur)}</span>` : ''}<span class="krw">${won(r.krw)}</span></span></button>
@@ -1040,7 +1118,7 @@ function breakdownHtml(x, r) {
 }
 function exRow(L, e) {
   const l = L.lots[e.id];
-  return `<li class="row ex"><button class="row-main" data-act="editEx" data-id="${e.id}"><span class="cat" aria-hidden="true">💱</span>
+  return `<li class="row ex"><button class="row-main" data-act="editEx" data-id="${e.id}"><span class="cat" aria-hidden="true"><span class="cat-ic" style="--cc:#A27A2C">${IC.swap}</span></span>
     <span class="row-txt"><span class="row-title">${money(e.amount, e.cur)} 환전${e.wallet && e.wallet !== '현금' ? ` (${esc(e.wallet)})` : ''}</span>
       <span class="row-meta"><span>${rateText(l.rate, l.per, e.cur)}</span>${e.memo ? `<span>${esc(e.memo)}</span>` : ''}</span></span>
     <span class="row-amt"><span class="fx">${won(l.krwPaid)}</span><span class="krw">${money(l.remaining, e.cur)} 남음</span></span></button></li>`;
@@ -1052,7 +1130,7 @@ function barsHtml(rows, scale) {
 function statsHtml(t, L) {
   if (!t.expenses.length) return `<p class="empty">지출을 기록하면 분류별, 통화별, 날짜별로 정리해 드려요.</p>`;
   const pct = v => L.total ? Math.round(v / L.total * 100) + '%' : '';
-  const cat = Object.entries(L.byCat).sort((a, b) => b[1] - a[1]).map(([k, v]) => [`${CAT_ICON[k] || ''} ${esc(k)}`, v, pct(v)]);
+  const cat = Object.entries(L.byCat).sort((a, b) => b[1] - a[1]).map(([k, v]) => [`${catIc(k, true)}${esc(k)}`, v, pct(v)]);
   const kind = [['환전한 돈', L.byKind.cash], ['실시간 결제', L.byKind.live], ['원화 결제', L.byKind.home]].filter(e => e[1] > 0).map(e => [...e, pct(e[1])]);
   const curs = Object.entries(L.byCur).map(([c, v]) => [esc(ci(c).name), v.krw, c === t.home ? '' : money(v.amount, c)]);
   const days = Object.keys(L.byDay).sort().map(d => [d ? fmtShort(d) : '날짜 없음', L.byDay[d].krw]);
@@ -1228,15 +1306,15 @@ function bookHtml(t) {
   const fl = [...t.flights].sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
   const st = [...t.stays].sort((a, b) => (a.inDate || '').localeCompare(b.inDate || ''));
   const files = x => (x.files || []).length ? `<div class="thumbs">${thumbsHtml(x.files, false, true)}</div>` : '';
-  return `<section class="books">${fl.map(f => `<div class="book" data-book="${f.id}"><button class="book-main" data-act="editFlight" data-id="${f.id}"><span class="bk-ic" aria-hidden="true">✈️</span>
+  return `<section class="books">${fl.map(f => `<div class="book" data-book="${f.id}"><button class="book-main" data-act="editFlight" data-id="${f.id}"><span class="bk-ic" aria-hidden="true">${IC.plane}</span>
       <span class="bk-t">${esc(fmtShort(f.date))} ${esc(f.time)} ${esc(f.from || '출발')} → ${esc(f.to || '도착')}${f.arrTime ? ` ${esc(f.arrTime)}${f.arrDate && f.date && f.arrDate > f.date ? ` (+${daysBetween(f.date, f.arrDate)}일)` : ''}` : ''}</span>
       <span class="bk-s">${esc([f.no, f.pnr && `예약번호 ${f.pnr}`].filter(Boolean).join(', '))}</span></button>${files(f)}</div>`).join('')}
     ${st.map(s => { const n = s.inDate && s.outDate ? daysBetween(s.inDate, s.outDate) : 0;
-      return `<div class="book" data-book="${s.id}"><button class="book-main" data-act="editStay" data-id="${s.id}"><span class="bk-ic" aria-hidden="true">🏨</span>
+      return `<div class="book" data-book="${s.id}"><button class="book-main" data-act="editStay" data-id="${s.id}"><span class="bk-ic" aria-hidden="true">${IC.숙박}</span>
       <span class="bk-t">${esc(s.name || '숙소')}${n > 0 ? ` <small>${n}박</small>` : ''}</span>
       <span class="bk-s">${esc(fmtShort(s.inDate))} ${esc(s.inTime)} 체크인 → ${esc(fmtShort(s.outDate))} ${esc(s.outTime)} 체크아웃${s.pnr ? `, 예약번호 ${esc(s.pnr)}` : ''}</span></button>
-      ${s.lat != null ? `<div class="tl-links"><a href="${esc(placeLink(s))}" target="_blank" rel="noopener">📍 지도에서 보기</a><a href="${esc(dirLink(null, s))}" target="_blank" rel="noopener">숙소로 길찾기</a></div>` : ''}${files(s)}</div>`; }).join('')}
-    <div class="book-add"><button class="btn small ghost" data-act="addFlight">✈️ 항공편 추가</button><button class="btn small ghost" data-act="addStay">🏨 숙소 추가</button></div></section>`;
+      ${s.lat != null ? `<div class="tl-links"><a href="${esc(placeLink(s))}" target="_blank" rel="noopener">${IC.pin}지도에서 보기</a><a href="${esc(dirLink(null, s))}" target="_blank" rel="noopener">숙소로 길찾기</a></div>` : ''}${files(s)}</div>`; }).join('')}
+    <div class="book-add"><button class="btn small ghost" data-act="addFlight">+ 항공편</button><button class="btn small ghost" data-act="addStay">+ 숙소</button></div></section>`;
 }
 function tabPlan(t) {
   const days = tripDays(t), dates = planDates(t);
@@ -1245,7 +1323,7 @@ function tabPlan(t) {
   const now = today() + ' ' + new Date().toTimeString().slice(0, 5);
   const nf = t.flights.filter(f => f.date && `${f.date} ${f.time || '23:59'}` >= now).sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))[0];
   const info = t.start ? `<div class="info-strip"><b>${n > 0 ? `출발까지 ${n}일 남았어요` : n === 0 ? '오늘 출발해요' : today() <= (t.end || t.start) ? '여행 중이에요' : '다녀온 여행이에요'}</b>
-      ${nf ? `<span class="muted">✈️ 다음 비행기 ${esc(fmtShort(nf.date))} ${esc(nf.time)}${nf.no ? ` ${esc(nf.no)}` : ''}</span>` : ''}</div>`
+      ${nf ? `<span class="muted">${IC.plane}다음 비행기 ${esc(fmtShort(nf.date))} ${esc(nf.time)}${nf.no ? ` ${esc(nf.no)}` : ''}</span>` : ''}</div>`
     : `<p class="empty">여행 날짜를 <button class="link" data-act="tripSettings">여행 설정</button>에서 정하면 날짜별 일정표가 만들어져요.</p>`;
   const bar = dayBarHtml(dates, days, S.pday, 'pday');
   const scope = S.pday === 'all' ? dates : dates.filter(d => d === S.pday);
@@ -1262,13 +1340,13 @@ function tabPlan(t) {
         ${p.time ? `<span class="tl-time">${esc(p.time)}</span>` : ''}<span class="tl-title">${esc(p.title || p.place || '일정')}</span>
         ${p.memo ? `<span class="tl-memo">${esc(p.memo)}</span>` : ''}</button>
         ${mv ? `<button type="button" class="tl-drag" aria-label="끌어서 순서 바꾸기">☰</button>` : ''}
-        ${!mv && (has || safeUrl(p.link)) ? `<div class="tl-links">${has ? `<a href="${esc(placeLink(p))}" target="_blank" rel="noopener">📍 ${esc(p.place || p.title || '지도에서 보기')}</a>` : ''}${p.lat != null ? `<a href="${esc(dirLink(null, p))}" target="_blank" rel="noopener">길찾기</a>${prev ? `<a class="sub" href="${esc(dirLink(prev, p))}" target="_blank" rel="noopener">이전 장소에서</a>` : ''}` : ''}${safeUrl(p.link) ? `<a href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener">링크 열기</a>` : ''}</div>` : ''}</li>`;
+        ${!mv && (has || safeUrl(p.link)) ? `<div class="tl-links">${has ? `<a href="${esc(placeLink(p))}" target="_blank" rel="noopener">${IC.pin}${esc(p.place || p.title || '지도에서 보기')}</a>` : ''}${p.lat != null ? `<a href="${esc(dirLink(null, p))}" target="_blank" rel="noopener">길찾기</a>${prev ? `<a class="sub" href="${esc(dirLink(prev, p))}" target="_blank" rel="noopener">이전 장소에서</a>` : ''}` : ''}${safeUrl(p.link) ? `<a href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener">링크 열기</a>` : ''}</div>` : ''}</li>`;
     };
-    const ev = (time, edge, id, act, title, sub) => ({ time, edge, html: `<li class="ev"><button class="tl-main" data-act="${act}" data-id="${id}">${time ? `<span class="tl-time">${esc(time)}</span>` : ''}<span class="tl-title">${esc(title)}</span>${sub ? `<span class="tl-memo">${esc(sub)}</span>` : ''}</button></li>` });
+    const ev = (time, edge, id, act, title, sub, ic) => ({ time, edge, html: `<li class="ev"><button class="tl-main" data-act="${act}" data-id="${id}">${time ? `<span class="tl-time">${esc(time)}</span>` : ''}<span class="tl-title">${ic || ''}${esc(title)}</span>${sub ? `<span class="tl-memo">${esc(sub)}</span>` : ''}</button></li>` });
     // 항공편·체크인/아웃은 시간 있는 일정 사이 제자리에 끼운다 (시간 없는 체크아웃은 맨 앞, 체크인은 맨 뒤)
-    const evs = [...t.flights.filter(f => f.date === d).map(f => ev(f.time, '', f.id, 'editFlight', `✈️ ${flightTitle(f)}`, f.arrTime ? `${f.arrTime} 도착` : '')),
-      ...t.stays.filter(s => s.outDate === d).map(s => ev(s.outTime, 'first', s.id, 'editStay', `🏨 ${s.name || '숙소'} 체크아웃`, '')),
-      ...t.stays.filter(s => s.inDate === d).map(s => ev(s.inTime, 'last', s.id, 'editStay', `🏨 ${s.name || '숙소'} 체크인`, ''))].sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
+    const evs = [...t.flights.filter(f => f.date === d).map(f => ev(f.time, '', f.id, 'editFlight', flightTitle(f), f.arrTime ? `${f.arrTime} 도착` : '', IC.plane)),
+      ...t.stays.filter(s => s.outDate === d).map(s => ev(s.outTime, 'first', s.id, 'editStay', `${s.name || '숙소'} 체크아웃`, '', IC.숙박)),
+      ...t.stays.filter(s => s.inDate === d).map(s => ev(s.inTime, 'last', s.id, 'editStay', `${s.name || '숙소'} 체크인`, '', IC.숙박))].sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
     const rows = items.map((p, i) => ({ time: p.time, html: planRow(p, i) }));
     for (const e of mv ? [] : evs) {
       let i;
@@ -1284,7 +1362,7 @@ function tabPlan(t) {
       <div class="pd-acts">${items.length > 1 ? `<button class="link" data-act="reorder" data-date="${esc(d)}">${mv ? '완료' : '순서 바꾸기'}</button>` : ''}${stops.length > 1 ? `<a href="${esc(routeLink(stops))}" target="_blank" rel="noopener">동선·거리 지도로 보기</a>` : ''}</div></header>
       ${mv ? '<p class="hint mv-hint">☰을 꾹 잡고 위아래로 끌어서 순서를 바꾸세요. 항공편·숙소는 시간에 맞춰 자동으로 들어가요.</p>' : ''}
       ${rows.length ? `<ul class="timeline">${rows.map(r => r.html).join('')}</ul>` : ''}
-      <div class="day-foot"><button class="btn small ghost add-line" data-act="addPlan" data-date="${esc(d)}">일정 추가</button>${night ? `<a href="${esc(dirLink(null, night))}" target="_blank" rel="noopener">🏨 숙소로 길찾기</a>` : ''}</div></section>`;
+      <div class="day-foot"><button class="btn small ghost add-line" data-act="addPlan" data-date="${esc(d)}">일정 추가</button>${night ? `<a href="${esc(dirLink(null, night))}" target="_blank" rel="noopener">${IC.숙박}숙소로 길찾기</a>` : ''}</div></section>`;
   }).join('') + (dates.length ? '' : `<button class="btn" data-act="addPlan" data-date="">일정 추가</button>`);
 }
 
@@ -1365,7 +1443,7 @@ function thumbsHtml(list, removable, zoom) {
       const img = `<img src="${blobUrl(a.id)}" alt="${esc(a.name || '사진')}" loading="lazy">`;
       return `<span class="thumb">${zoom || !removable ? `<button class="thumb-btn" data-act="zoom" data-id="${esc(a.id)}" aria-label="크게 보기">${img}</button>` : img}${rm}</span>`;
     }
-    return `<span class="thumb file"><button type="button" class="file-btn" data-act="openFile" data-id="${esc(a.id)}" data-name="${esc(a.name || '파일')}">📄 ${esc(a.name || '파일')}</button>${rm}</span>`;
+    return `<span class="thumb file"><button type="button" class="file-btn" data-act="openFile" data-id="${esc(a.id)}" data-name="${esc(a.name || '파일')}">${IC.doc}${esc(a.name || '파일')}</button>${rm}</span>`;
   }).join('');
 }
 function pickFiles(accept, multiple) {
@@ -1548,7 +1626,7 @@ function sheetExpense(t, id) {
       <p class="hint">자동 환율은 시장 환율이라 카드사 청구액과 조금 다를 수 있어요. 명세서의 원화 금액을 넣으면 그 금액이 그대로 쓰여요. <a data-ratelink target="_blank" rel="noopener">환율 검색</a></p></div>
     <div class="preview" data-preview aria-live="polite"></div>
     <div class="fld two"><div><label for="f-date">날짜</label><input type="date" id="f-date" value="${esc(d.date)}"></div><div><label for="f-time">시간</label><input type="time" id="f-time" value="${esc(d.time || '')}"></div></div>
-    <div class="fld"><span class="fl">분류</span><div class="chips" data-cats>${CATS.map(c => `<button type="button" data-v="${c}" aria-pressed="${d.cat === c}">${CAT_ICON[c]} ${c}</button>`).join('')}</div></div>
+    <div class="fld"><span class="fl">분류</span><div class="chips" data-cats>${CATS.map(c => `<button type="button" data-v="${c}" aria-pressed="${d.cat === c}">${catIc(c, true)}${c}</button>`).join('')}</div></div>
     <div class="fld"><label for="f-memo">내용</label><input id="f-memo" value="${esc(d.memo)}" placeholder="예: 라멘 가게" autocomplete="off"></div>
     <div class="fld"><label for="f-note">자세한 메모</label><textarea id="f-note" style="min-height:70px" placeholder="품목, 번역 등">${esc(d.note || '')}</textarea></div>
     ${multi ? `<div class="fld"><label for="f-payer">낸 사람</label><select id="f-payer">${t.members.map(m => `<option ${m === d.payer ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></div>
@@ -1827,7 +1905,7 @@ function sheetPlan(t, id, date) {
     <div class="fld"><label for="p-place">장소</label>
     <div class="combo"><input id="p-place" value="${esc(d.place)}" placeholder="${GMAPS_KEY ? '장소 검색 (예: 호주우유공사)' : '장소 이름 (또는 구글지도 링크 붙여넣기)'}" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="p-sug"><ul class="combo-list places" id="p-sug" role="listbox" hidden></ul></div>
     <div class="map-stat" data-mapstat hidden><span data-mapstat-t></span><button type="button" class="link" data-unmap>해제</button></div>
-    ${GMAPS_KEY ? '<div class="map-btns"><button type="button" class="btn small" data-pickmap>🗺️ 지도에서 직접 찍기</button></div><div data-pickslot></div>' : ''}
+    ${GMAPS_KEY ? '<div class="map-btns"><button type="button" class="btn small" data-pickmap>지도에서 직접 찍기</button></div><div data-pickslot></div>' : ''}
     <p class="hint">검색에 안 나오면 지도에서 직접 찍거나, 구글지도 링크를 붙여넣어도 돼요.</p></div>
     <div class="fld"><label for="p-memo">메모</label><textarea id="p-memo" style="min-height:80px">${esc(d.memo)}</textarea></div>
     <div class="fld"><label for="p-link">링크</label><input id="p-link" type="url" inputmode="url" value="${esc(d.link)}" placeholder="예: naver.com" autocomplete="off"></div>
@@ -2474,7 +2552,7 @@ ACT.joinTrip = joinTripSheet;
 
 // ===== 로그인 =====
 function loginHtml() {
-  return `<header class="home-head"><h1>TripNote</h1>
+  return `<header class="home-head"><h1>${MARK}TripNote</h1>
     <p>별명과 숫자 6자리 PIN으로 들어가요. 다른 폰이나 PC에서도 같은 별명과 PIN이면 내 여행이 그대로 열려요.</p></header>
     <div class="login">
       <div class="fld"><label for="lg-nick">별명</label><input id="lg-nick" maxlength="10" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="한글·영문·숫자 10자까지"></div>
