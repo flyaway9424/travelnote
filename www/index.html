@@ -648,6 +648,16 @@ body{-webkit-font-smoothing:antialiased}
 .trip-card .dd{border-radius:0;background:none;color:var(--terra);border-left:1.5px dashed color-mix(in srgb,var(--ink-2) 45%,transparent)}
 .calc-fab{background:var(--green);color:var(--green-ink)}
 .calc-fab[aria-expanded="true"]{background:var(--ink);color:var(--paper)}
+.legs{display:grid;gap:8px;margin-bottom:8px}
+.legs:empty{display:none}
+.leg{display:grid;grid-template-columns:1fr 1fr 40px;gap:6px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.leg [data-k=start]{grid-column:1;grid-row:1}
+.leg [data-k=name]{grid-column:2/4;grid-row:1}
+.leg [data-k=cur]{grid-column:1;grid-row:2}
+.leg [data-k=tz]{grid-column:2;grid-row:2}
+.leg .x{grid-column:3;grid-row:2;border:0;background:none;color:var(--ink-2);font-size:1rem;min-height:44px;cursor:pointer}
+.fl small{font-weight:500;color:var(--ink-2);margin-left:4px}
+.leg-tag{display:inline-block;margin-left:8px;padding:0 8px;border-radius:999px;background:var(--surface-2);font-size:.76rem;font-weight:600;color:var(--ink-2);vertical-align:2px;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -1033,17 +1043,33 @@ function homeHtml() {
 }
 
 function tripHead(t) {
-  const showClock = t.tz && t.tz !== 'Asia/Seoul';
+  const lz = legsOf(t).length ? legsOn(t, defaultDate(t)) : [];
+  const zones = lz.length ? lz.map(l => [legTz(l), legName(l)]) : (t.tz ? [[t.tz, tzLabel(t.tz)]] : []);
+  const showClock = zones.some(z => z[0] !== 'Asia/Seoul');
   return `<header class="trip-head">
     <button class="icon-btn" data-act="home" aria-label="여행 목록">${IC.back}</button>
     <div class="th-main"><h1>${esc(t.name)}</h1><p class="th-sub">${fmtRange(t)} ${dday(t) ? `<span class="dchip">${esc(dday(t))}</span>` : ''}</p></div>
     <button class="icon-btn" data-act="tripSettings" aria-label="여행 설정">${IC.gear}</button></header>
-    ${showClock ? `<p class="clock" data-clock="${esc(t.tz)}"></p>` : ''}`;
+    ${showClock ? `<p class="clock" data-clock="${esc(JSON.stringify(zones))}"></p>` : ''}`;
 }
+// ----- 나라별 구간 (여러 나라 여행): 시작 날짜부터 다음 구간 전날까지 그 나라 -----
+const legsOf = t => (t.legs || []).filter(l => l.start && l.cur).sort((a, b) => a.start.localeCompare(b.start));
+function legOn(t, d) { let r = null; for (const l of legsOf(t)) if (l.start <= d) r = l; return r; }   // 그날의 기본 나라
+function legsOn(t, d) {   // 이동하는 날은 [떠나는 나라, 도착하는 나라]
+  const ls = legsOf(t), i = ls.findIndex(l => l.start === d);
+  if (i > 0) return [ls.at(i - 1), ls.at(i)];
+  const l = legOn(t, d); return l ? [l] : [];
+}
+const legTz = l => l.tz || ci(l.cur).tz || 'Asia/Seoul';
+const legName = l => l.name || (l.cur === 'KRW' ? '한국' : ci(l.cur).name);
+const dayCur = (t, d) => { const l = legOn(t, d); return l && (t.curs.includes(l.cur) || l.cur === t.home) ? l.cur : null; };
+const legTag = (t, d) => { const ls = legsOf(t).length ? legsOn(t, d) : []; return ls.length ? `<span class="leg-tag">${ls.map(l => esc(legName(l))).join(' → ')}</span>` : ''; };
 function tick() {
   const el = $('[data-clock]'); if (!el) return;
-  const tz = el.dataset.clock;
-  el.innerHTML = `<span>${esc(tzLabel(tz))} <b>${tzTime(tz)}</b></span><span>서울 <b>${tzTime('Asia/Seoul')}</b></span><span>${gapText(tz)}</span>`;
+  let zones; try { zones = JSON.parse(el.dataset.clock); } catch { zones = [[el.dataset.clock, tzLabel(el.dataset.clock)]]; }
+  const main = zones.at(-1)[0];
+  el.innerHTML = zones.filter(z => z[0] !== 'Asia/Seoul').map(z => `<span>${esc(z[1])} <b>${tzTime(z[0])}</b></span>`).join('')
+    + `<span>서울 <b>${tzTime('Asia/Seoul')}</b></span>${main !== 'Asia/Seoul' ? `<span>${gapText(main)}</span>` : ''}`;
 }
 setInterval(tick, 30000);
 
@@ -1110,7 +1136,7 @@ function listHtml(t, L) {
   return Object.keys(g).sort().reverse().map(d => {
     const day = L.byDay[d];
     const fx = day ? Object.entries(day.cur).filter(([c]) => c !== t.home).map(([c, a]) => money(a, c)).join(', ') : '';
-    return `<section class="day"><header><h3>${fmtDay(d)}</h3>${day ? `<p>${won(day.krw)}${fx ? `<br><span class="muted">${fx}</span>` : ''}</p>` : ''}</header>
+    return `<section class="day"><header><h3>${fmtDay(d)}${legTag(t, d)}</h3>${day ? `<p>${won(day.krw)}${fx ? `<br><span class="muted">${fx}</span>` : ''}</p>` : ''}</header>
       <ul class="rows">${g[d].sort((a, b) => byOrd(a.x, b.x)).map(it => it.k === 'e' ? expRow(t, L, it.x) : exRow(L, it.x)).join('')}</ul></section>`;
   }).join('');
 }
@@ -1375,7 +1401,7 @@ function tabPlan(t) {
       rows.splice(i, 0, { time: e.time, html: e.html });
     }
     const night = stayOn(t, d).find(s => s.lat != null && d < (s.outDate || s.inDate));
-    return `<section class="plan-day" style="--dc:${dayColor(days, d)}"><header><h3>${idx >= 0 ? `${idx + 1}일차` : (d ? '기타 날짜' : '날짜 없음')}<span>${d ? fmtDay(d) : ''}</span></h3>
+    return `<section class="plan-day" style="--dc:${dayColor(days, d)}"><header><h3>${idx >= 0 ? `${idx + 1}일차` : (d ? '기타 날짜' : '날짜 없음')}<span>${d ? fmtDay(d) : ''}</span>${d ? legTag(t, d) : ''}</h3>
       <div class="pd-acts">${items.length > 1 ? `<button class="link" data-act="reorder" data-date="${esc(d)}">${mv ? '완료' : '순서 바꾸기'}</button>` : ''}${stops.length > 1 ? `<a href="${esc(routeLink(stops))}" target="_blank" rel="noopener">동선·거리 지도로 보기</a>` : ''}</div></header>
       ${mv ? '<p class="hint mv-hint">☰을 꾹 잡고 위아래로 끌어서 순서를 바꾸세요. 항공편·숙소는 시간에 맞춰 자동으로 들어가요.</p>' : ''}
       ${rows.length ? `<ul class="timeline">${rows.map(r => r.html).join('')}</ul>` : ''}
@@ -1622,9 +1648,12 @@ function previewExp(t, d) {
 }
 function sheetExpense(t, id) {
   const old = id ? t.expenses.find(e => e.id === id) : null;
-  const opts = [...new Set([...(t.curs || []), t.home, ...(old ? [old.cur] : [])])];
+  const date0 = old ? old.date : (S.mday && S.mday !== 'all' ? S.mday : defaultDate(t));
+  const lead = legsOn(t, date0).map(l => l.cur).reverse().filter(c => (t.curs || []).includes(c) || c === t.home);
+  const opts = [...new Set([...lead, ...(t.curs || []), t.home, ...(old ? [old.cur] : [])])];
   const hasLots = c => t.exchanges.some(e => e.cur === c);
-  const d = old ? clone(old) : { id: uid('e_'), date: S.mday && S.mday !== 'all' ? S.mday : defaultDate(t), time: '', cur: opts[0], amount: '', method: hasLots(opts[0]) ? 'cash' : 'live',
+  const c0 = dayCur(t, date0) || opts[0];
+  const d = old ? clone(old) : { id: uid('e_'), date: date0, time: '', cur: c0, amount: '', method: hasLots(c0) ? 'cash' : 'live',
     wallet: '현금', cat: '식비', memo: '', note: '', payer: S.user && t.members.includes(S.user.nick) ? S.user.nick : t.members[0], split: [], photos: [], ts: Date.now() };
   d.photos = d.photos || []; d.split = d.split || []; d.per = +d.per || defaultPer(d.cur);
   if (d.method !== 'live') { const lr = latestRate(t, d.cur); d.rate = lr ? lr.rate : ''; d.per = lr ? lr.per : defaultPer(d.cur); d.krw = ''; }
@@ -1688,7 +1717,8 @@ function sheetExpense(t, id) {
       if (v !== t.home) { d.method = hasLots(v) ? 'cash' : 'live'; setSeg(root, 'method', d.method); }
       setSeg(root, 'cur', v);
     };
-    bindSeg(root, 'cur', v => { setCurrency(v); sync(); autoRate(); });
+    let curPicked = !!old;   // 통화를 직접 고르면 날짜를 바꿔도 그대로
+    bindSeg(root, 'cur', v => { curPicked = true; setCurrency(v); sync(); autoRate(); });
     bindSeg(root, 'method', v => {
       d.method = v;
       if (v === 'live' && !(parseNum(d.rate) > 0)) { const lr = latestRate(t, d.cur); if (lr) { d.rate = lr.rate; d.per = lr.per; } }
@@ -1703,7 +1733,12 @@ function sheetExpense(t, id) {
     };
     rate.oninput = () => { manual = true; rseq++; note(''); d.rateSrc = 'manual'; d.rateDate = ''; d.rate = rate.value; d.krw = ''; krw.value = ''; preview(); };
     krw.oninput = () => { manual = true; rseq++; note(''); d.rateSrc = 'krw'; d.rateDate = ''; d.krw = krw.value; const a = parseNum(d.amount), k = parseNum(krw.value); if (a > 0 && k > 0) { d.rate = r4(k * d.per / a); rate.value = d.rate; } preview(); };
-    $('#f-date', root).oninput = e => { d.date = e.target.value; preview(); autoRate(); };
+    $('#f-date', root).oninput = e => {
+      d.date = e.target.value;
+      const c = !curPicked && dayCur(t, d.date);
+      if (c && c !== d.cur && opts.includes(c)) { setCurrency(c); sync(); }
+      preview(); autoRate();
+    };
     $('#f-time', root).oninput = e => { d.time = e.target.value; preview(); };
     $('#f-memo', root).oninput = e => { d.memo = e.target.value; };
     $('#f-note', root).oninput = e => { d.note = e.target.value; };
@@ -1799,7 +1834,8 @@ function sheetExchange(t, id) {
   const old = id ? t.exchanges.find(e => e.id === id) : null;
   if (!old && !t.curs.length) { toast('여행 설정에서 쓸 외화를 먼저 추가해 주세요.'); sheetTrip(t); return; }
   const opts = [...new Set([...t.curs, ...(old ? [old.cur] : [])])];
-  const d = old ? clone(old) : { id: uid('x_'), date: today(), cur: opts[0], amount: '', rate: '', per: defaultPer(opts[0]), wallet: '현금', memo: '', ts: Date.now() };
+  const xc = dayCur(t, today()) || opts[0], x0 = opts.includes(xc) ? xc : opts[0];
+  const d = old ? clone(old) : { id: uid('x_'), date: today(), cur: x0, amount: '', rate: '', per: defaultPer(x0), wallet: '현금', memo: '', ts: Date.now() };
   d.per = +d.per || defaultPer(d.cur);
   const lot = old ? computeLedger(t).lots[old.id] : null;
   const used = lot ? r6(lot.amount - lot.remaining) : 0;
@@ -2128,6 +2164,9 @@ function sheetTrip(t) {
     <div class="fld"><label for="t-curx">쓸 외화</label><div class="chips picked" data-curs></div>
       <div class="combo"><input id="t-curx" role="combobox" aria-expanded="false" aria-controls="t-curlist" placeholder="통화나 나라 검색 (예: 홍콩, USD)" autocomplete="off"><ul class="combo-list" id="t-curlist" role="listbox" hidden></ul></div></div>
     <div class="fld"><label for="t-tz">현지 시간대</label><select id="t-tz"></select></div>
+    <div class="fld"><span class="fl">나라별 구간 <small>여러 나라를 다닐 때</small></span><div class="legs" data-legs></div>
+      <button type="button" class="btn small" data-addleg>+ 구간 추가</button>
+      <p class="hint">시작 날짜부터 다음 구간 전날까지 그 나라예요. 그 날짜의 통화와 현지 시각이 자동으로 맞춰지고, 기록할 때 언제든 바꿀 수 있어요.</p></div>
     <div class="fld"><label for="t-budget">예산 (원)</label><input id="t-budget" inputmode="numeric" value="${d.budget ? nf(d.budget) : ''}" placeholder="없으면 비워 두세요" autocomplete="off"></div>
     <div class="fld"><label for="t-members">함께 가는 사람</label><input id="t-members" value="${esc(d.members.join(', '))}" placeholder="쉼표로 구분 (예: 나, 민지)" autocomplete="off">
       <p class="hint">두 명 이상이면 지출마다 낸 사람과 같이 쓴 사람을 골라 정산할 수 있어요.</p></div>
@@ -2148,7 +2187,7 @@ function sheetTrip(t) {
     };
     const openList = v => { list.hidden = !v; curx.setAttribute('aria-expanded', v); if (v) drawList(); };
     const autoTz = () => { if (!tzTouched && d.curs[0] && ci(d.curs[0]).tz) { d.tz = ci(d.curs[0]).tz; drawTz(); } };
-    const pick = c => { d.curs = d.curs.includes(c) ? d.curs.filter(x => x !== c) : [...d.curs, c]; drawCurs(); autoTz(); if (!list.hidden) drawList(); };
+    const pick = c => { d.curs = d.curs.includes(c) ? d.curs.filter(x => x !== c) : [...d.curs, c]; drawCurs(); autoTz(); drawLegs(); if (!list.hidden) drawList(); };
     chips.onclick = e => { const b = e.target.closest('button'); if (b) pick(b.dataset.v); };
     curx.onfocus = curx.oninput = () => openList(true);
     curx.onblur = () => openList(false);
@@ -2159,7 +2198,33 @@ function sheetTrip(t) {
       if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); const li = curx.value.trim() && $('[data-v]', list); if (li) { pick(li.dataset.v); curx.value = ''; drawList(); } }
     };
     tz.onchange = () => { tzTouched = true; d.tz = tz.value; };
-    drawCurs(); drawTz();
+    // 나라별 구간
+    d.legs = clone(d.legs || []);
+    const legBox = $('[data-legs]', root);
+    const tzOpts = v => [...(TZS.some(z => z[0] === v) ? TZS : [...TZS, [v, v]])].map(([z, l]) => `<option value="${esc(z)}"${z === v ? ' selected' : ''}>${esc(l)}</option>`).join('');
+    const drawLegs = () => {
+      legBox.innerHTML = d.legs.map((l, i) => `<div class="leg" data-i="${i}">
+        <input type="date" data-k="start" value="${esc(l.start || '')}" aria-label="구간 시작 날짜">
+        <input data-k="name" value="${esc(l.name || '')}" placeholder="도시 (예: 파리)" autocomplete="off" aria-label="도시">
+        <select data-k="cur" aria-label="통화">${[...new Set([...d.curs, 'KRW', l.cur].filter(Boolean))].map(c => `<option value="${esc(c)}"${c === l.cur ? ' selected' : ''}>${esc(c === 'KRW' ? '원화 (한국)' : ci(c).name)}</option>`).join('')}</select>
+        <select data-k="tz" aria-label="시간대">${tzOpts(legTz(l))}</select>
+        <button type="button" class="x" data-delleg aria-label="구간 지우기">✕</button></div>`).join('');
+    };
+    const legEdit = e => {
+      const row = e.target.closest('.leg'), k = e.target.dataset.k; if (!row || !k) return;
+      const l = d.legs.at(+row.dataset.i); l[k] = e.target.value;
+      if (k === 'tz') l.tzSet = true;
+      if (k === 'cur' && !l.tzSet) { l.tz = ci(l.cur).tz || (l.cur === 'KRW' ? 'Asia/Seoul' : ''); drawLegs(); }
+    };
+    legBox.addEventListener('input', legEdit); legBox.addEventListener('change', legEdit);
+    legBox.addEventListener('click', e => { const b = e.target.closest('[data-delleg]'); if (b) { d.legs.splice(+b.closest('.leg').dataset.i, 1); drawLegs(); } });
+    $('[data-addleg]', root).onclick = () => {
+      const last = d.legs.at(-1), used = d.legs.map(l => l.cur);
+      const next = last && last.start ? new Date(Date.parse(last.start) + 864e5).toISOString().slice(0, 10) : ($('#t-start', root).value || '');
+      const c = d.curs.find(x => !used.includes(x)) || d.curs[0] || 'KRW';
+      d.legs.push({ id: uid('l_'), start: next, name: '', cur: c, tz: ci(c).tz || 'Asia/Seoul' }); drawLegs();
+    };
+    drawCurs(); drawTz(); drawLegs();
     $('[data-save]', root).onclick = () => {
       d.name = $('#t-name', root).value.trim() || '이름 없는 여행';
       d.start = $('#t-start', root).value; d.end = $('#t-end', root).value;
@@ -2168,11 +2233,13 @@ function sheetTrip(t) {
       d.members = [...new Set($('#t-members', root).value.split(/[,，\n]/).map(s => s.trim()).filter(Boolean))];
       if (!d.members.length) d.members = ['나'];
       d.tz = tz.value;
+      d.legs = d.legs.filter(l => l.start && l.cur).map(l => ({ id: l.id || uid('l_'), start: l.start, name: (l.name || '').trim(), cur: l.cur, tz: legTz(l) })).sort((a, b) => a.start.localeCompare(b.start));
+      for (const l of d.legs) if (l.cur !== 'KRW' && !d.curs.includes(l.cur)) d.curs.push(l.cur);
       if (!isNew) {
         const used = [...new Set([...t.expenses, ...t.exchanges].map(x => x.cur).filter(c => c !== t.home))];
         const miss = used.filter(c => !d.curs.includes(c));
         if (miss.length) { d.curs.push(...miss); toast(`기록이 있는 통화(${miss.map(c => ci(c).name).join(', ')})는 남겨 뒀어요.`); }
-        Object.assign(t, { name: d.name, start: d.start, end: d.end, curs: d.curs, tz: d.tz, budget: d.budget, members: d.members });
+        Object.assign(t, { name: d.name, start: d.start, end: d.end, curs: d.curs, tz: d.tz, legs: d.legs, budget: d.budget, members: d.members });
         Store.save(t);
       } else {
         Store.save(normTrip(d)); S.tripId = d.id; S.tab = 'money'; S.mview = 'list'; savePrefs();
@@ -2489,7 +2556,12 @@ function calcFill(from) {
   else { const v = parseNum(k.value); a.value = v > 0 ? nf(v / Calc.rate, ci(Calc.cur).dec || 0) : ''; }
   Calc.a = a.value; Calc.k = k.value;
 }
-$('#calcFab').addEventListener('click', () => { if ($('#calc').hidden) calcOpen(); else calcClose(); });
+$('#calcFab').addEventListener('click', () => {
+  if (!$('#calc').hidden) { calcClose(); return; }
+  const t = cur(), c = t && dayCur(t, defaultDate(t));
+  if (c && c !== t.home && c !== Calc.cur) { Calc.cur = c; Calc.a = Calc.k = ''; }
+  calcOpen();
+});
 let fabY = 0;
 addEventListener('scroll', () => {
   const y = scrollY, fab = $('#calcFab');
