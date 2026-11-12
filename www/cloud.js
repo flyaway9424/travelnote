@@ -35,7 +35,7 @@
   TN.signOut = async () => { flushAll(); await new Promise(r => setTimeout(r, 800)); return auth.signOut(); };
 
   // ----- 여행 저장: 목록은 항목 id별로 저장해서 여러 사람이 동시에 써도 서로 덮어쓰지 않게 -----
-  const LISTS = ['exchanges', 'expenses', 'plans', 'notes', 'checklist', 'diary', 'flights', 'stays'];
+  const LISTS = ['exchanges', 'expenses', 'plans', 'notes', 'checklist', 'diary', 'flights', 'stays', 'packs'];   // packs = 공용 준비물을 누가 챙겼는지
   // 서버 칸: members = 들어올 수 있는 계정 아이디 목록(앱에서는 t.uids), people = 정산용 '함께 가는 사람'(앱에서는 t.members)
   const APP_SKIP = ['id', 'owner', 'uids', 'names', 'shareCode', 'joinKey'];   // 앱이 저장하지 않는 칸
   const SERVER = ['members', 'owner', 'names', 'shareCode', 'joinKey'];        // 바뀐 칸 계산에서 빼는 서버 칸
@@ -199,6 +199,28 @@
   };
 
   // ----- 예전 '보관함 코드'의 여행을 내 계정으로 옮기기 (기기마다 한 번) -----
+  // ----- 나만 보는 기록 (나만 보기 일기·내 준비물): users/{내 계정}/trips/{여행} — 본인만 읽고 쓴다 -----
+  const MINE = ['diary', 'checklist', 'packed'];   // packed = 개별 기본 준비물 중 내가 챙긴 것
+  const mineRef = id => fs.collection('users').doc(TN.user.uid).collection('trips').doc(id);
+  TN.mine = {
+    watch(tripId, cb) {
+      if (!TN.user) return () => {};
+      return mineRef(tripId).onSnapshot(s => {
+        const d = (s.exists && s.data()) || {}, out = {};
+        for (const k of MINE) { const m = d[k] || {}; out[k] = Object.keys(m).sort().map(i => m[i]); }
+        cb(out);
+      }, e => cb(null, norm(e)));
+    },
+    put(tripId, list, item) {
+      const ref = mineRef(tripId);
+      return ok(Promise.resolve().then(() => ref.update({ [list + '.' + item.id]: clone(item) })).catch(e => {
+        if (/not.found/.test(String(e && e.code))) return ref.set({ [list]: { [item.id]: clone(item) } }, { merge: true });   // 처음 쓸 때
+        throw e;
+      }));
+    },
+    del: (tripId, list, id) => ok(Promise.resolve().then(() => mineRef(tripId).update({ [list + '.' + id]: FV.delete() }))),
+  };
+
   TN.migrate = async () => {
     const u = TN.user; let room = null; try { room = localStorage.getItem('travelnote:room'); } catch {}
     const flag = 'travelnote:migrated:' + u.uid;
