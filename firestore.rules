@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+
+
+    // 여행: 멤버만 읽고 쓰기, 삭제는 만든 사람만
+    match /trips/{trip} {
+      allow get: if signedIn() && (resource == null || me() in resource.data.members);
+      allow list: if signedIn() && me() in resource.data.members;
+      allow create: if signedIn() && request.resource.data.owner == me()
+        && request.resource.data.members == [me()];
+      allow update: if signedIn() && (
+        // 만든 사람: 공유 코드·멤버 관리 (자기 자신은 남아 있어야 함)
+        (me() == resource.data.owner && request.resource.data.owner == me() && me() in request.resource.data.members)
+        // 함께하는 사람: 기록만 (멤버·공유 코드·주인은 못 바꿈)
+        || (me() in resource.data.members && !changed().hasAny(['owner', 'members', 'names', 'shareCode']))
+        // 나가기: 나만 빠지기
+        || (me() in resource.data.members && me() != resource.data.owner && changed().hasOnly(['members'])
+            && request.resource.data.members == resource.data.members.removeAll([me()]))
+        // 공유 코드로 참여: 코드가 맞을 때 나만 추가
+        || (!(me() in resource.data.members) && resource.data.get('shareCode', '') != ''
+            && request.resource.data.get('joinKey', '') == resource.data.shareCode
+            && changed().hasOnly(['members', 'names', 'joinKey'])
+            && request.resource.data.members.size() == resource.data.members.size() + 1
+            && request.resource.data.members.hasAll(resource.data.members)
+            && me() in request.resource.data.members
+            && request.resource.data.names.diff(resource.data.get('names', {})).affectedKeys().hasOnly([me()]))
+      );
+      allow delete: if signedIn() && resource.data.owner == me();
+    }
+
+    // 공유 코드 → 여행 (만든 사람만 만들고 지울 수 있음)
+    match /shares/{code} {
+      allow get: if signedIn();
+      allow create: if signedIn() && request.resource.data.owner == me()
+        && get(/databases/$(db)/documents/trips/$(request.resource.data.trip)).data.owner == me();
+      allow delete: if signedIn() && resource.data.owner == me();
+    }
+
+    // 첨부: 올린 사람과 그 여행 멤버만
+    match /assets/{id} {
+      allow get, delete: if signedIn() && (resource == null || resource.data.owner == me()
+        || (resource.data.trip != '' && me() in get(/databases/$(db)/documents/trips/$(resource.data.trip)).data.members));
+      allow create: if signedIn() && request.resource.data.owner == me();
+    }
+  }
+}

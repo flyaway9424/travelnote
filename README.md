@@ -1,29 +1,33 @@
-# 여행노트 앱 (실시간 동기화 · 백업 · APK/PWA)
+# TripNote (여행노트)
 
-## 1. Firebase 연결 (무료, 5분)
-1. https://console.firebase.google.com → 프로젝트 추가
-2. 빌드 > **Firestore Database** > 데이터베이스 만들기 (프로덕션 모드, 서울 asia-northeast3)
-3. Firestore > **규칙** 탭에 아래를 붙여 넣고 게시
-```
-rules_version = '2';
-service cloud.firestore { match /databases/{d}/documents {
-  match /rooms/{room}/{coll}/{doc} { allow read, write: if true; }
-} }
-```
-4. 프로젝트 설정 > 내 앱 > 웹(</>) 추가 → 나오는 `firebaseConfig` 값을 `www/firebase-config.js`에 붙여 넣기
+여행 일정·지도·가계부·노트·체크리스트·일기를 한곳에 기록하는 여행 앱.
+웹: https://flyaway9424.github.io/travelnote/ · 안드로이드: GitHub Actions에서 만든 TripNote APK · 아이폰: 사파리 → 홈 화면에 추가
 
-## 2. GitHub에 올려 자동 빌드
-1. 이 폴더 전체를 새 GitHub 저장소(main)에 업로드
-2. 저장소 Settings > Pages > Source: **GitHub Actions**
-3. Actions 탭 > 완료되면
-   - **APK**: 실행 결과의 Artifacts > `travelnote-apk` 다운로드 → 폰에 설치 (안드로이드)
-   - **웹앱 주소**: Pages 주소(https://아이디.github.io/저장소/)
+자세한 설명(기능, 구조, 데이터, 보안 규칙, 배포, 변경 이력)은 "TripNote 앱 소개·개발 문서"를 보세요.
 
-## 3. 아이폰
-네이티브 앱은 Mac+Xcode+Apple 개발자 계정이 필요해서, 웹앱 주소를 Safari로 열고 **공유 > 홈 화면에 추가**하세요. 아이콘·전체화면·오프라인까지 앱처럼 동작합니다.
+## 폴더
 
-## 4. 공유 · 기기 변경 · 백업
-- 앱 첫 화면 **☁️ 동기화·공유**에 *보관함 코드*가 있어요. 새 폰/가족 폰에서 이 코드를 입력하면 같은 여행이 실시간으로 열립니다. **코드를 꼭 따로 적어 두세요.**
-- 모든 기록은 Firestore에 실시간 저장되고, 오프라인에서도 기기에 먼저 저장 후 자동 업로드됩니다.
-- 추가 안전망: 여행 화면의 백업 내보내기(JSON/CSV)를 가끔 저장하세요.
-- 보안: 코드를 아는 사람만 접근 가능한 방식입니다(로그인 없음). 코드를 공개하지 마세요.
+| 경로 | 역할 |
+| --- | --- |
+| `www/index.html` | 화면과 모든 기능 |
+| `www/cloud.js` | Firebase 로그인·저장·동기화·공유·첨부 |
+| `www/firebase-config.js` | Firebase 프로젝트 설정값 |
+| `www/sw.js` | 오프라인 캐시 |
+| `www/manifest.webmanifest`, `www/icon-*.png` | 웹앱 이름·아이콘 |
+| `assets/` | 안드로이드 아이콘·시작 화면 원본 |
+| `vendor.mjs` | 빌드 때 Firebase SDK(app·firestore·auth 10.12.5)를 `www/vendor/`로 받음 |
+| `package.json`, `capacitor.config.json` | 안드로이드 앱 껍데기(Capacitor 6) 설정 |
+| `.github/workflows/build.yml` | `main`에 올리면 웹 배포 + APK 빌드 |
+| `firestore.rules` | Firestore 보안 규칙 (Firebase 콘솔에 붙여넣어 적용) |
+
+## 배포
+
+1. `main`에 올리면 Actions가 웹(GitHub Pages)과 APK를 같이 만든다.
+2. `www/`만 바꿨다면 웹·앱 모두 자동 반영 (앱은 껐다 켜기).
+3. `package.json`, `capacitor.config.json`, `assets/`, `build.yml`을 바꿨다면 Actions의 Artifacts에서 `TripNote-apk`를 받아 다시 설치.
+
+## 처음 설정할 때
+
+- Firebase 콘솔: Authentication → 로그인 방법 → 이메일/비밀번호 사용 설정
+- Firebase 콘솔: Firestore → 규칙 → `firestore.rules` 내용 붙여넣고 게시
+- Google Cloud: Maps JavaScript API, Places API (New) 사용 설정. 키는 웹사이트 `https://flyaway9424.github.io/*`로 제한하고 `www/index.html`의 `GMAPS_KEY`에 넣는다.
