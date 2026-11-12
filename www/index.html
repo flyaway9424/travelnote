@@ -544,6 +544,36 @@ body.has-fab #app{padding-bottom:156px}
 .calc-foot{margin-top:2px}
 .calc-src{margin:4px 0 6px}
 .calc-rate{font-size:.82rem;color:var(--ink-2)}
+.sum-bar{position:sticky;top:calc(env(safe-area-inset-top,0px) + var(--head-h,64px));z-index:4;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin:6px -16px 0;padding:10px 16px;background:var(--paper);box-shadow:0 1px 0 var(--line)}
+.sum-main{display:grid;min-width:0}
+.sum-lbl{font-size:.76rem;color:var(--ink-2)}
+.sum-total{font-size:1.55rem;font-weight:700;letter-spacing:-.03em;line-height:1.2}
+.sum-fx{font-size:.8rem;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sum-acts{display:flex;gap:6px;flex:none}
+.sum-acts .btn{min-height:42px;padding:0 14px;font-size:.92rem}
+.day-bar{top:calc(env(safe-area-inset-top,0px) + var(--head-h,64px) + var(--sum-h,0px))}
+.summary{padding:12px 0 4px}
+.summary:empty{display:none}
+.kinds{margin-top:0}
+.wallet{margin:16px 0 4px;padding:0;border:0;background:none;overflow:visible}
+.wallet header{padding:0 0 8px}
+.wallet header p span{font-size:.82rem}
+.lot-strip{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x proximity;scroll-padding:0 16px;scrollbar-width:none;margin:0 -16px;padding:2px 16px 4px}
+.lot-strip::-webkit-scrollbar{display:none}
+.lotc{flex:0 0 150px;height:104px;display:grid;grid-template-rows:auto auto 4px auto;align-content:space-between;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);text-align:left;color:var(--ink);font:inherit;scroll-snap-align:start}
+.lotc.cur{border-color:var(--green);box-shadow:inset 0 0 0 1px var(--green)}
+.lotc.done{opacity:.55;background:none}
+.lc-top{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:.88rem}
+.lc-top i{font-style:normal;font-size:.68rem;font-weight:700;color:var(--green);border:1px solid currentColor;border-radius:999px;padding:0 6px;line-height:1.5;white-space:nowrap}
+.lc-top i.off{color:var(--ink-2)}
+.lc-amt{font-size:.9rem;color:var(--ink-2);white-space:nowrap}
+.lc-amt b{font-size:1.15rem;color:var(--ink)}
+.lc-amt small{font-size:.8rem}
+.lc-bar{height:4px;border-radius:2px;background:var(--surface-2);overflow:hidden}
+.lc-bar i{display:block;height:100%;background:var(--green)}
+.lotc.done .lc-bar{visibility:hidden}
+.lc-rate{font-size:.74rem;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 </style>
 </head>
 <body>
@@ -882,7 +912,10 @@ function render() {
   nav.firstElementChild.innerHTML = [['plan', '일정'], ['money', '가계부'], ['notes', '노트'], ['check', '체크리스트'], ['diary', '일기']]
     .map(([k, l]) => `<button data-act="tab" data-v="${k}" ${S.tab === k ? 'aria-current="page"' : ''}>${TABI[k]}<span>${l}</span></button>`).join('');
   tick();
-  const th = $('.trip-head'); if (th) document.documentElement.style.setProperty('--head-h', th.offsetHeight + 'px');
+  const th = $('.trip-head'), sb = $('.sum-bar'), rs = document.documentElement.style;
+  if (th) rs.setProperty('--head-h', th.offsetHeight + 'px');
+  rs.setProperty('--sum-h', (sb ? sb.offsetHeight : 0) + 'px');
+  $$('.lot-strip').forEach(s => { const c = $('.lotc.cur', s); if (c) s.scrollLeft = c.offsetLeft - 16; });
   if (S.tab === 'plan') planMap(t);
   const bar = $('.day-bar'), on = bar && $('[aria-pressed="true"]', bar);
   if (on) bar.scrollLeft = on.offsetLeft - (bar.clientWidth - on.offsetWidth) / 2;
@@ -923,8 +956,10 @@ setInterval(tick, 30000);
 function tabMoney(t, L) {
   const v = S.mview;
   const fx = t.curs.length || t.exchanges.length;
-  return summaryHtml(t, L) +
-    `<div class="act-row"${fx ? '' : ' style="grid-template-columns:1fr"'}><button class="btn primary" data-act="addExp">지출 기록</button>${fx ? '<button class="btn" data-act="addEx">환전 기록</button>' : ''}</div>` +
+  const fxs = Object.entries(L.byCur).filter(([c]) => c !== t.home).map(([c, x]) => money(x.amount, c)).join(', ');
+  return `<div class="sum-bar"><div class="sum-main"><span class="sum-lbl">지금까지 쓴 돈</span><b class="sum-total">${won(L.total)}</b>${fxs ? `<span class="sum-fx">${fxs}</span>` : ''}</div>
+      <div class="sum-acts"><button class="btn primary" data-act="addExp">지출 기록</button>${fx ? '<button class="btn" data-act="addEx">환전</button>' : ''}</div></div>` +
+    summaryHtml(t, L) +
     (fx ? walletHtml(t, L) : '') +
     `<div class="seg sub" role="tablist">${[['list', '내역'], ['stats', '통계'], ['settle', '정산']].map(([k, l]) =>
       `<button role="tab" aria-selected="${v === k}" data-act="mview" data-v="${k}">${l}</button>`).join('')}</div>` +
@@ -934,8 +969,7 @@ function summaryHtml(t, L) {
   const b = +t.budget || 0;
   const fx = Object.entries(L.byCur).filter(([c]) => c !== t.home).map(([c, v]) => `<span><b>${money(v.amount, c)}</b></span>`).join('');
   const over = b && L.total > b;
-  return `<section class="summary"><p class="lbl">지금까지 쓴 돈</p><p class="big">${won(L.total)}</p>
-    ${fx ? `<p class="fx-line">외화로는 ${fx}</p>` : ''}
+  return `<section class="summary">
     ${b ? `<div class="budget"><div class="bar ${over ? 'over' : ''}"><i style="width:${Math.min(100, L.total / b * 100)}%"></i></div>
       <p>${over ? `예산 ${won(b)}보다 ${won(L.total - b)} 더 썼어요` : `예산 ${won(b)} 중 ${won(b - L.total)} 남았어요`}</p></div>` : ''}
     ${t.curs.length || t.exchanges.length ? `<dl class="kinds"><div><dt>환전한 돈에서</dt><dd>${won(L.byKind.cash)}</dd></div>
@@ -948,12 +982,13 @@ function walletHtml(t, L) {
   if (!L.pools.length) return `<p class="wallet-empty">환전한 돈을 기록하면 남은 현금과 그때 환율을 여기서 보여 드려요. 현금으로 쓴 돈은 먼저 환전한 돈부터 빼서 계산해요.</p>`;
   return L.pools.map(p => {
     const next = p.lots.find(l => l.remaining > 0), dec = ci(p.cur).dec || 0;
-    return `<section class="wallet"><header><h3>${esc(ci(p.cur).name)} ${esc(p.wallet)}</h3><p><b>${money(p.remaining, p.cur)}</b> 남음</p></header>
-      <ul class="lots">${p.lots.map(l => `<li><button class="lot${l.remaining <= 0 ? ' done' : ''}" data-act="editEx" data-id="${l.id}" aria-label="${fmtShort(l.date)} 환전분 수정">
-        <span class="lot-info"><span class="lot-date">${fmtShort(l.date)} 환전${l === next ? `<i>${l.remaining < l.amount ? '사용 중' : '다음 차례'}</i>` : ''}</span><span class="lot-rate">${rateText(l.rate, l.per, l.cur)}</span></span>
-        <span class="lot-left">${l.remaining <= 0 ? `${money(l.amount, l.cur)} 다 씀` : `<b>${nf(l.remaining, dec)}</b> / ${nf(l.amount, dec)}`}</span>
-        <span class="lot-bar"><i style="width:${l.amount ? Math.max(0, l.remaining / l.amount * 100) : 0}%"></i></span></button></li>`).join('')}</ul>
-      <p class="wallet-foot">환전 당시 환율로 ${won(p.remainingKrw)}${p.short ? `<span class="warn-t">${money(p.short, p.cur)} 더 씀</span>` : ''}</p></section>`;
+    return `<section class="wallet"><header><h3>${esc(ci(p.cur).name)} ${esc(p.wallet)}</h3><p><b>${money(p.remaining, p.cur)}</b> 남음 <span>(${won(p.remainingKrw)}어치)</span></p></header>
+      <div class="lot-strip">${p.lots.map(l => `<button class="lotc${l.remaining <= 0 ? ' done' : ''}${l === next ? ' cur' : ''}" data-act="editEx" data-id="${l.id}" aria-label="${fmtShort(l.date)} 환전분 수정">
+        <span class="lc-top"><b>${fmtShort(l.date)}</b>${l === next ? `<i>${l.remaining < l.amount ? '사용 중' : '다음 차례'}</i>` : l.remaining <= 0 ? '<i class="off">다 씀</i>' : ''}</span>
+        <span class="lc-amt">${l.remaining <= 0 ? nf(l.amount, dec) : `<b>${nf(l.remaining, dec)}</b><small> / ${nf(l.amount, dec)}</small>`}</span>
+        <span class="lc-bar"><i style="width:${l.amount ? Math.max(0, l.remaining / l.amount * 100) : 0}%"></i></span>
+        <span class="lc-rate">${rateText(l.rate, l.per, l.cur)}</span></button>`).join('')}</div>
+      ${p.short ? `<p class="warn-t">환전 기록보다 ${money(p.short, p.cur)} 더 썼어요.</p>` : ''}</section>`;
   }).join('');
 }
 function envHtml(l, isNext) {
@@ -1396,6 +1431,12 @@ function cleanupAssets(saved, before, after, fresh) {
 const sheet = $('#sheet');
 let onSheetClose = null;
 // ===== 폰 뒤로가기: 열린 창을 닫고, 여행 안이면 홈으로, 홈이면 앱 종료 =====
+// 안드로이드 앱(APK)에서는 뒤로가기 버튼을 웹으로 넘겨받는다 (@capacitor/app 필요)
+(function capBack() {
+  const app = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if (!app) { if (!capBack.n) { capBack.n = 1; addEventListener('load', capBack); } return; }
+  app.addListener('backButton', e => { if (e && e.canGoBack) history.back(); else app.exitApp(); });
+})();
 const Nav = { skip: 0, trip: false, sheet: false };
 function navPush(kind) { try { history.pushState({ tn: kind }, ''); } catch {} }
 function navPop() { Nav.skip++; history.back(); }   // 우리가 직접 닫을 때: 쌓아 둔 기록을 하나 지운다
@@ -2238,7 +2279,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isCompos
 function pickDay(key, el) {
   S[key] = el.dataset.v; S.reorder = null; render();
   const top = $('[data-daytop]'); if (!top) return;
-  const y = top.getBoundingClientRect().top + window.scrollY - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--head-h')) || 0);
+  const cs = getComputedStyle(document.documentElement), y = top.getBoundingClientRect().top + window.scrollY - (parseFloat(cs.getPropertyValue('--head-h')) || 0) - (parseFloat(cs.getPropertyValue('--sum-h')) || 0);
   if (window.scrollY > y) window.scrollTo({ top: y });
 }
 // ===== 사진·일기 크게 보기 =====
@@ -2377,7 +2418,7 @@ let swipe = null;
 $('#app').addEventListener('touchstart', e => {
   const x = e.touches[0].clientX;
   swipe = cur() && e.touches.length === 1 && x > 24 && x < innerWidth - 24   // 화면 가장자리(폰 뒤로가기 제스처)는 피함
-    && !e.target.closest('.day-bar, .strip, .ck-tabs, .gmap-slot, .seg, .tl-drag, input, textarea, select, .lots, .kinds, .calc-panel')
+    && !e.target.closest('.day-bar, .strip, .ck-tabs, .gmap-slot, .seg, .tl-drag, input, textarea, select, .lot-strip, .kinds, .calc-panel')
     ? { x, y: e.touches[0].clientY, t: Date.now() } : null;
 }, { passive: true });
 $('#app').addEventListener('touchend', e => {
