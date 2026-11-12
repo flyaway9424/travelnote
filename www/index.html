@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>여행노트</title>
+<title>TripNote</title>
 <link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#1F6F5C">
-<link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-title" content="TripNote"><meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <script src="firebase-config.js"></script>
 <script src="vendor/firebase-app-compat.js"></script><script src="vendor/firebase-firestore-compat.js"></script><script src="vendor/firebase-auth-compat.js"></script>
@@ -499,12 +499,59 @@ body{background:var(--paper)}
 .vw-cap{padding:12px 18px calc(env(safe-area-inset-bottom,0px) + 18px);max-height:34vh;overflow:auto;line-height:1.65}
 .vw-cap b{display:block;margin-bottom:4px}
 .vw-cap p{white-space:pre-wrap;color:rgba(255,255,255,.85)}
+.file-btn{border:0;background:none;padding:0;color:var(--green);font:inherit;text-align:left;text-decoration:underline;cursor:pointer}
+.viewer.pdf{background:#2B302E}
+.viewer.pdf[open]{grid-template-rows:auto minmax(0,1fr)}
+.vw-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff}
+.vw-acts{display:flex;align-items:center;gap:4px}
+.vw-dl{min-height:36px;padding:0 12px;border-radius:8px;border:1px solid rgba(255,255,255,.3);background:none;color:#fff;font-weight:600}
+.pdf-pages{overflow:auto;padding:8px 8px calc(env(safe-area-inset-bottom,0px) + 16px);display:grid;gap:8px;justify-items:center;align-content:start}
+.pdf-pages canvas{width:100%;max-width:900px;height:auto;background:#fff;border-radius:4px}
+.pdf-msg{color:rgba(255,255,255,.85);padding:24px;text-align:center}
+.wallet{margin:18px 0 6px;padding:0;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);overflow:hidden}
+.wallet header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:12px 14px 10px;margin:0;border:0}
+.wallet h3{font-size:.95rem;font-weight:700}
+.wallet header p{font-size:.92rem;color:var(--ink-2)}
+.wallet header p b{color:var(--ink)}
+.lots{list-style:none;margin:0;padding:0}
+.lot{width:100%;display:grid;grid-template-columns:1fr auto;align-items:center;gap:6px 12px;padding:10px 14px;border:0;border-top:1px solid var(--line);background:none;text-align:left;color:var(--ink);font:inherit}
+.lot-date{font-weight:700;display:flex;align-items:center;gap:6px}
+.lot-date i{font-style:normal;font-size:.7rem;font-weight:700;color:var(--green);border:1px solid currentColor;border-radius:999px;padding:0 6px;line-height:1.5}
+.lot-info{display:grid;gap:1px;min-width:0}
+.lot-rate{font-size:.84rem;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lot-left{font-size:.86rem;color:var(--ink-2);text-align:right}
+.lot-left b{color:var(--ink);font-size:.95rem}
+.lot-bar{grid-column:1/-1;height:4px;border-radius:2px;background:var(--surface-2);overflow:hidden}
+.lot-bar i{display:block;height:100%;background:var(--green)}
+.lot.done{opacity:.6}
+.lot.done .lot-bar{display:none}
+.wallet-foot{display:flex;justify-content:space-between;gap:8px;padding:8px 14px 10px;border-top:1px solid var(--line);font-size:.82rem;color:var(--ink-2)}
+.wallet-empty{margin:14px 0 4px;padding:12px 14px;border:1px dashed var(--line);border-radius:var(--r);font-size:.88rem;color:var(--ink-2)}
+.calc-fab{position:fixed;right:16px;bottom:calc(72px + env(safe-area-inset-bottom,0px));z-index:6;width:54px;height:54px;border-radius:50%;border:0;background:var(--ink);color:var(--paper);font-weight:700;font-size:.92rem;letter-spacing:-.04em;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.calc-fab[aria-expanded="true"]{background:var(--green);color:#fff}
+.calc-fab{transition:transform .2s,opacity .2s}
+.calc-fab.away{transform:translateY(96px);opacity:0;pointer-events:none}
+body.has-fab #app{padding-bottom:156px}
+@media (prefers-reduced-motion: reduce){.calc-fab{transition:none}}
+.calc-panel{position:fixed;left:12px;right:12px;bottom:calc(136px + env(safe-area-inset-bottom,0px));z-index:7;max-width:380px;margin-left:auto;padding:10px 14px 14px;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 14px 36px rgba(0,0,0,.22)}
+.calc-panel header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.calc-curs,.calc-src{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.calc-curs button,.calc-src button{min-height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:.84rem;font-weight:600}
+.calc-curs button[aria-pressed="true"],.calc-src button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.calc-row{display:grid;grid-template-columns:72px 1fr;align-items:center;gap:8px;margin-bottom:8px}
+.calc-row span{font-weight:700;color:var(--ink-2)}
+.calc-row input{min-height:48px;font-size:1.3rem;font-weight:700;text-align:right;border-radius:10px}
+.calc-foot{margin-top:2px}
+.calc-src{margin:4px 0 6px}
+.calc-rate{font-size:.82rem;color:var(--ink-2)}
 </style>
 </head>
 <body>
 <div id="app"><p class="loading">불러오는 중</p></div>
 <nav class="tabs" id="tabs" hidden aria-label="여행 메뉴"><div></div></nav>
 <dialog id="sheet" aria-label="입력"><div id="sheetBody"></div></dialog>
+<button type="button" id="calcFab" class="calc-fab" hidden aria-label="환율 계산기" aria-expanded="false" aria-controls="calc">₩⇄</button>
+<section id="calc" class="calc-panel" hidden aria-label="환율 계산기"></section>
 <div id="toast" role="status" aria-live="polite" popover="manual"></div>
 <script>
 'use strict';
@@ -823,9 +870,10 @@ const TABI = {
   diary: '<svg viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/></svg>' };
 function render() {
   const app = $('#app'), nav = $('#tabs');
-  if (!S.ready) { nav.hidden = true; app.innerHTML = '<p class="loading">불러오는 중</p>'; return; }
-  if (Store.mode === 'db' && !S.user) { nav.hidden = true; app.innerHTML = loginHtml(); return; }
+  if (!S.ready) { nav.hidden = true; calcSync(null); app.innerHTML = '<p class="loading">불러오는 중</p>'; return; }
+  if (Store.mode === 'db' && !S.user) { nav.hidden = true; calcSync(null); app.innerHTML = loginHtml(); return; }
   const t = cur();
+  navTrip(!!t); calcSync(t);
   if (!t) { S.tripId = null; nav.hidden = true; app.innerHTML = homeHtml(); return; }
   const L = computeLedger(t);
   const body = { plan: tabPlan, money: tabMoney, notes: tabNotes, check: tabCheck, diary: tabDiary }[S.tab] || tabMoney;
@@ -843,7 +891,7 @@ function render() {
 
 function homeHtml() {
   const list = Object.values(S.trips).map(normTrip).sort((a, b) => (b.start || '').localeCompare(a.start || '') || b.createdAt - a.createdAt);
-  return `<header class="home-head"><h1>여행노트</h1>
+  return `<header class="home-head"><h1>TripNote</h1>
     <p>여행 일정과 지도, 쓴 돈을 한곳에 기록해요.</p></header>
     <div class="home-acts"><button class="btn primary" data-act="newTrip">새 여행 만들기</button>${Store.mode === 'db' ? '<button class="btn" data-act="joinTrip">코드로 참여</button>' : ''}</div>
     ${list.length ? `<ul class="trip-list">${list.map(t => {
@@ -897,13 +945,15 @@ function summaryHtml(t, L) {
   </section>`;
 }
 function walletHtml(t, L) {
-  if (!L.pools.length) return `<section class="wallet empty-wallet"><p>환전한 돈을 기록하면, 환전한 순서대로 봉투에 담아 남은 금액과 그때의 환율을 보여드려요. 현금으로 쓴 돈은 오래된 봉투부터 꺼내 계산해요.</p></section>`;
+  if (!L.pools.length) return `<p class="wallet-empty">환전한 돈을 기록하면 남은 현금과 그때 환율을 여기서 보여 드려요. 현금으로 쓴 돈은 먼저 환전한 돈부터 빼서 계산해요.</p>`;
   return L.pools.map(p => {
-    const next = p.lots.find(l => l.remaining > 0);
-    return `<section class="wallet"><header><h3>${esc(ci(p.cur).name)} ${esc(p.wallet)}</h3>
-      <p><b>${money(p.remaining, p.cur)}</b> 남음 <span class="muted">(환전 당시 환율로 ${won(p.remainingKrw)})</span></p></header>
-      <div class="envs">${p.lots.map(l => envHtml(l, l === next)).join('')}</div>
-      ${p.short ? `<p class="warn">이 지갑에서 ${money(p.short, p.cur)}을 환전 기록보다 더 썼어요.</p>` : ''}</section>`;
+    const next = p.lots.find(l => l.remaining > 0), dec = ci(p.cur).dec || 0;
+    return `<section class="wallet"><header><h3>${esc(ci(p.cur).name)} ${esc(p.wallet)}</h3><p><b>${money(p.remaining, p.cur)}</b> 남음</p></header>
+      <ul class="lots">${p.lots.map(l => `<li><button class="lot${l.remaining <= 0 ? ' done' : ''}" data-act="editEx" data-id="${l.id}" aria-label="${fmtShort(l.date)} 환전분 수정">
+        <span class="lot-info"><span class="lot-date">${fmtShort(l.date)} 환전${l === next ? `<i>${l.remaining < l.amount ? '사용 중' : '다음 차례'}</i>` : ''}</span><span class="lot-rate">${rateText(l.rate, l.per, l.cur)}</span></span>
+        <span class="lot-left">${l.remaining <= 0 ? `${money(l.amount, l.cur)} 다 씀` : `<b>${nf(l.remaining, dec)}</b> / ${nf(l.amount, dec)}`}</span>
+        <span class="lot-bar"><i style="width:${l.amount ? Math.max(0, l.remaining / l.amount * 100) : 0}%"></i></span></button></li>`).join('')}</ul>
+      <p class="wallet-foot">환전 당시 환율로 ${won(p.remainingKrw)}${p.short ? `<span class="warn-t">${money(p.short, p.cur)} 더 씀</span>` : ''}</p></section>`;
   }).join('');
 }
 function envHtml(l, isNext) {
@@ -1280,7 +1330,7 @@ function thumbsHtml(list, removable, zoom) {
       const img = `<img src="${blobUrl(a.id)}" alt="${esc(a.name || '사진')}" loading="lazy">`;
       return `<span class="thumb">${zoom || !removable ? `<button class="thumb-btn" data-act="zoom" data-id="${esc(a.id)}" aria-label="크게 보기">${img}</button>` : img}${rm}</span>`;
     }
-    return `<span class="thumb file"><a href="${blobUrl(a.id)}" target="_blank" rel="noopener">📄 ${esc(a.name || '파일')}</a>${rm}</span>`;
+    return `<span class="thumb file"><button type="button" class="file-btn" data-act="openFile" data-id="${esc(a.id)}" data-name="${esc(a.name || '파일')}">📄 ${esc(a.name || '파일')}</button>${rm}</span>`;
   }).join('');
 }
 function pickFiles(accept, multiple) {
@@ -1345,16 +1395,33 @@ function cleanupAssets(saved, before, after, fresh) {
 // ===== 입력 시트 =====
 const sheet = $('#sheet');
 let onSheetClose = null;
+// ===== 폰 뒤로가기: 열린 창을 닫고, 여행 안이면 홈으로, 홈이면 앱 종료 =====
+const Nav = { skip: 0, trip: false, sheet: false };
+function navPush(kind) { try { history.pushState({ tn: kind }, ''); } catch {} }
+function navPop() { Nav.skip++; history.back(); }   // 우리가 직접 닫을 때: 쌓아 둔 기록을 하나 지운다
+function navTrip(on) {
+  if (on && !Nav.trip) { Nav.trip = true; navPush('trip'); }
+  else if (!on && Nav.trip) { Nav.trip = false; navPop(); }
+}
+window.addEventListener('popstate', () => {
+  if (Nav.skip > 0) { Nav.skip--; return; }
+  if ($('dialog.viewer[open]')) return;                                  // 크게 보기 창은 스스로 닫힘
+  if (sheet.open) { Nav.sheet = false; closeSheet(); return; }
+  if (Nav.trip) { Nav.trip = false; S.tripId = null; S.reorder = null; savePrefs(); render(); window.scrollTo(0, 0); }
+});
 function openSheet(html, mount, onClose) {
   const body = $('#sheetBody');
   const prev = onSheetClose; onSheetClose = null; prev && prev();
   body.innerHTML = html; onSheetClose = onClose || null;
-  if (!sheet.open) sheet.showModal();
+  if (!sheet.open) { sheet.showModal(); if (!Nav.sheet) { Nav.sheet = true; navPush('sheet'); } }
   body.scrollTop = 0;
   mount && mount(body);
 }
 function closeSheet() { if (sheet.open) sheet.close(); }
-sheet.addEventListener('close', () => { const f = onSheetClose; onSheetClose = null; $('#sheetBody').innerHTML = ''; f && f(); });
+sheet.addEventListener('close', () => {
+  if (Nav.sheet && !sheet.open) { Nav.sheet = false; navPop(); }
+  const f = onSheetClose; onSheetClose = null; $('#sheetBody').innerHTML = ''; f && f();
+});
 sheet.addEventListener('click', e => { if (e.target === sheet || e.target.closest('[data-close]')) closeSheet(); });
 function sheetHead(title) { return `<div class="sheet-head"><h2>${title}</h2><button class="icon-btn" data-close aria-label="닫기">✕</button></div>`; }
 function segHtml(field, opts, val) { return `<div class="seg" data-seg="${field}">${opts.map(([v, l]) => `<button type="button" data-v="${esc(v)}" aria-pressed="${v === val}">${esc(l)}</button>`).join('')}</div>`; }
@@ -1396,7 +1463,7 @@ async function fetchRate(cur, date) {
 }
 // 그날 환율이 없어 임시로 넣었던 자동 환율을, 그날이 지나면 그날 환율로 바꾼다
 async function fixAutoRates(t) {
-  const due = t.expenses.filter(x => x.method === 'live' && x.rateSrc === 'auto' && x.rateDate && x.rateDate !== x.date && x.date && x.date <= today());
+  const due = [...t.expenses.filter(x => x.method === 'live'), ...t.exchanges].filter(x => x.rateSrc === 'auto' && x.rateDate && x.rateDate !== x.date && x.date && x.date <= today());
   let n = 0;
   for (const x of due) {
     const r = await fetchRate(x.cur, x.date);
@@ -1608,6 +1675,7 @@ function sheetExchange(t, id) {
     <div class="fld"><span class="fl">환율</span><div class="rate-in"><select id="x-per" aria-label="기준 단위"><option value="1">1</option><option value="100">100</option></select>
       <span style="display:flex;gap:8px;align-items:center"><span data-unit2></span> =<input id="x-rate" inputmode="decimal" autocomplete="off" value="${esc(d.rate)}" placeholder="${last ? esc(nf(last.rate, 4)) : '0'}" aria-label="환율"></span><span>원</span></div>
       <div class="rate-in"><span>낸 원화</span><input id="x-krw" inputmode="numeric" autocomplete="off" aria-label="낸 원화"><span>원</span></div>
+      <p class="hint" data-xnote aria-live="polite"></p>
       <p class="hint">환율이나 낸 원화 중 아는 쪽만 넣으면 나머지가 계산돼요.</p></div>
     <div class="fld two"><div><label for="x-date">환전한 날</label><input type="date" id="x-date" value="${esc(d.date)}"></div>
       <div><label for="x-wallet">보관처</label><input id="x-wallet" list="x-wallets" value="${esc(d.wallet || '현금')}" autocomplete="off"><datalist id="x-wallets">${wallets.map(w => `<option value="${esc(w)}">`).join('')}</datalist></div></div>
@@ -1619,11 +1687,25 @@ function sheetExchange(t, id) {
     const amt = $('#x-amt', root), rate = $('#x-rate', root), krw = $('#x-krw', root), per = $('#x-per', root);
     const units = () => { $('[data-unit]', root).textContent = ci(d.cur).unit.trim(); $('[data-unit2]', root).textContent = ci(d.cur).unit.trim(); per.value = String(d.per); };
     const fillKrw = () => { const a = parseNum(amt.value), r = parseNum(rate.value); krw.value = a > 0 && r > 0 ? toKrw(a, r, d.per) : ''; };
-    bindSeg(root, 'cur', v => { d.cur = v; d.per = defaultPer(v); units(); fillKrw(); });
+    bindSeg(root, 'cur', v => { d.cur = v; d.per = defaultPer(v); units(); fillKrw(); autoX(); });
     per.onchange = () => { const np = +per.value, r = parseNum(rate.value); if (r > 0) rate.value = r6(r * np / d.per); d.per = np; fillKrw(); };
-    amt.oninput = fillKrw; rate.oninput = fillKrw;
-    krw.oninput = () => { const a = parseNum(amt.value), k = parseNum(krw.value); if (a > 0 && k > 0) rate.value = r6(k * d.per / a); };
-    units(); fillKrw();
+    // 그날 시장 환율을 기본으로 넣고, 영수증 환율이나 낸 원화를 넣으면 그 값을 쓴다 (예전 기록은 그대로)
+    let manual = !!old, xseq = 0;
+    const note = s => { $('[data-xnote]', root).textContent = s; };
+    const autoX = async () => {
+      if (manual) return;
+      const my = ++xseq; note('환율을 불러오는 중…');
+      const r = await fetchRate(d.cur, $('#x-date', root).value || today());
+      if (my !== xseq || manual) return;
+      if (!r) { note('환율을 불러오지 못했어요. 직접 넣어 주세요.'); return; }
+      rate.value = r2(r.rate * d.per); d.rateSrc = 'auto'; d.rateDate = r.date; fillKrw();
+      note(`${fmtShort(r.date)} 시장 환율을 넣었어요. 환전소 영수증의 환율이나 낸 원화를 넣으면 그 값으로 바뀌어요.`);
+    };
+    amt.oninput = fillKrw;
+    rate.oninput = () => { manual = true; xseq++; note(''); d.rateSrc = 'manual'; d.rateDate = ''; fillKrw(); };
+    krw.oninput = () => { manual = true; xseq++; note(''); d.rateSrc = 'manual'; d.rateDate = ''; const a = parseNum(amt.value), k = parseNum(krw.value); if (a > 0 && k > 0) rate.value = r6(k * d.per / a); };
+    $('#x-date', root).addEventListener('change', autoX);
+    units(); fillKrw(); if (!old) autoX();
     $('[data-save]', root).onclick = () => {
       const a = parseNum(amt.value), r = parseNum(rate.value);
       if (!(a > 0)) { toast('받은 외화 금액을 입력해 주세요.'); amt.focus(); return; }
@@ -2134,6 +2216,11 @@ const ACT = {
   addDiary: () => sheetDiary(cur()),
   editDiary: el => sheetDiary(cur(), el.dataset.id),
   zoom: el => { const ids = $$('[data-act="zoom"]', el.closest('.thumbs') || el.parentNode).map(b => b.dataset.id); openViewer(ids, Math.max(0, ids.indexOf(el.dataset.id))); },
+  openFile: async el => {
+    const data = await assetData(el.dataset.id);
+    if (!data) { toast('파일을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.'); return; }
+    if (/^data:application\/pdf/i.test(data)) openPdf(data, el.dataset.name || '파일'); else openViewer([el.dataset.id], 0);
+  },
   viewPost: el => {
     const d = cur().diary.find(x => x.id === el.dataset.id); if (!d) return;
     openViewer((d.photos || []).filter(a => (a.type || 'image/').startsWith('image/')).map(a => a.id), +el.dataset.i || 0, `<b>${fmtDay(d.date)}</b>${d.text ? `<p>${esc(d.text)}</p>` : ''}`);
@@ -2155,33 +2242,153 @@ function pickDay(key, el) {
   if (window.scrollY > y) window.scrollTo({ top: y });
 }
 // ===== 사진·일기 크게 보기 =====
+// 검은 화면 창: ✕·Esc·뒤로가기로 닫힘 (사진은 바깥 누르기·아래로 쓸기도)
+function openOverlay(html, o = {}) {
+  const dlg = document.createElement('dialog'); dlg.className = 'viewer' + (o.cls ? ' ' + o.cls : ''); dlg.setAttribute('aria-label', o.label || '크게 보기');
+  dlg.innerHTML = html; document.body.append(dlg); dlg.showModal(); navPush('viewer');
+  let popped = false;
+  const onPop = () => { popped = true; dlg.close(); };
+  window.addEventListener('popstate', onPop);
+  dlg.addEventListener('close', () => { window.removeEventListener('popstate', onPop); if (!popped) navPop(); dlg.remove(); });
+  dlg.addEventListener('click', e => { if (e.target.closest('.vw-x') || (o.tapClose && !e.target.closest('img, .vw-cap, button'))) dlg.close(); });
+  if (o.swipeClose) {
+    let sx = 0, sy = 0;
+    dlg.addEventListener('touchstart', e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+    dlg.addEventListener('touchend', e => { const p = e.changedTouches[0]; if (p.clientY - sy > 90 && Math.abs(p.clientX - sx) < 60) dlg.close(); });
+  }
+  return dlg;
+}
 function openViewer(ids, start = 0, cap = '') {
-  const dlg = document.createElement('dialog'); dlg.className = 'viewer'; dlg.setAttribute('aria-label', '크게 보기');
-  dlg.innerHTML = `<div class="vw-top"><span class="vw-count" aria-live="polite"></span><button type="button" class="vw-x" aria-label="닫기">✕</button></div>
+  const dlg = openOverlay(`<div class="vw-top"><span class="vw-count" aria-live="polite"></span><button type="button" class="vw-x" aria-label="닫기">✕</button></div>
     <div class="vw-track">${ids.map(id => `<figure class="vw-slide"><img src="${blobUrl(id)}" alt=""></figure>`).join('')}</div>
     ${ids.length > 1 ? '<button type="button" class="vw-nav prev" aria-label="이전 사진">‹</button><button type="button" class="vw-nav next" aria-label="다음 사진">›</button>' : ''}
-    ${cap ? `<div class="vw-cap">${cap}</div>` : ''}`;
-  document.body.append(dlg); dlg.showModal();
+    ${cap ? `<div class="vw-cap">${cap}</div>` : ''}`, { tapClose: true, swipeClose: true, label: '사진 크게 보기' });
   const track = $('.vw-track', dlg), count = $('.vw-count', dlg), n = ids.length;
   const at = () => Math.round(track.scrollLeft / (track.clientWidth || 1));
   const upd = () => { count.textContent = n > 1 ? `${at() + 1} / ${n}` : ''; };
   const go = i => track.scrollTo({ left: Math.max(0, Math.min(n - 1, i)) * track.clientWidth, behavior: 'smooth' });
   track.scrollLeft = start * track.clientWidth; upd();
   track.addEventListener('scroll', () => requestAnimationFrame(upd), { passive: true });
-  // 폰의 뒤로가기로도 닫히게
-  let pushed = false; try { history.pushState({ viewer: 1 }, ''); pushed = true; } catch {}
-  const onPop = () => { pushed = false; dlg.close(); };
-  window.addEventListener('popstate', onPop);
-  dlg.addEventListener('close', () => { window.removeEventListener('popstate', onPop); if (pushed) { pushed = false; history.back(); } dlg.remove(); });
-  dlg.addEventListener('click', e => {
-    if (e.target.closest('.vw-nav')) go(at() + (e.target.closest('.prev') ? -1 : 1));
-    else if (e.target.closest('.vw-x') || !e.target.closest('img, .vw-cap')) dlg.close(); // 사진 바깥을 눌러도 닫힘
-  });
+  dlg.addEventListener('click', e => { if (e.target.closest('.vw-nav')) go(at() + (e.target.closest('.prev') ? -1 : 1)); });
   dlg.addEventListener('keydown', e => { if (e.key === 'ArrowLeft') go(at() - 1); if (e.key === 'ArrowRight') go(at() + 1); });
-  let sx = 0, sy = 0; // 아래로 쓸어내리면 닫힘
-  dlg.addEventListener('touchstart', e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
-  dlg.addEventListener('touchend', e => { const p = e.changedTouches[0]; if (p.clientY - sy > 90 && Math.abs(p.clientX - sx) < 60) dlg.close(); });
 }
+// ----- PDF: 앱 안에서 바로 보기 (pdf.js) -----
+let pdfjsP = null;
+function loadPdfJs() {
+  return pdfjsP || (pdfjsP = new Promise((ok, no) => {
+    const base = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/', s = document.createElement('script');
+    s.src = base + 'pdf.min.js';
+    s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.js'; ok(window.pdfjsLib); };
+    s.onerror = () => { pdfjsP = null; no(new Error('pdfjs')); };
+    document.head.append(s);
+  }));
+}
+async function assetData(id) { // 첨부 내용 (아직 안 받았으면 받아질 때까지 잠깐 기다림)
+  for (let i = 0; i < 80; i++) { const u = window.TN && window.TN.assetUrl(id); if (u) return u; await new Promise(r => setTimeout(r, 125)); }
+  return null;
+}
+async function openPdf(data, name) {
+  const dlg = openOverlay(`<div class="vw-top"><span class="vw-name">${esc(name)}</span><span class="vw-acts"><button type="button" class="vw-dl" aria-label="내려받기">저장</button><button type="button" class="vw-x" aria-label="닫기">✕</button></span></div>
+    <div class="pdf-pages"><p class="pdf-msg">PDF를 여는 중…</p></div>`, { cls: 'pdf', label: name });
+  const blob = () => { const b = atob(data.split(',')[1]); const u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; };
+  $('.vw-dl', dlg).onclick = async () => {
+    const file = new File([blob()], /\.pdf$/i.test(name) ? name : name + '.pdf', { type: 'application/pdf' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file] }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; document.body.append(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  };
+  const box = $('.pdf-pages', dlg);
+  try {
+    const lib = await loadPdfJs(), doc = await lib.getDocument({ data: blob() }).promise;
+    box.innerHTML = '';
+    for (let i = 1; i <= doc.numPages && dlg.isConnected; i++) {
+      const page = await doc.getPage(i), w = Math.max(280, box.clientWidth - 16), vp1 = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: w / vp1.width * Math.min(2, window.devicePixelRatio || 1) });
+      const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height; c.setAttribute('aria-label', `${i}쪽`);
+      box.append(c); await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+    }
+  } catch (e) { console.warn(e); box.innerHTML = '<p class="pdf-msg">PDF를 열지 못했어요. 인터넷 연결을 확인하거나, 위의 저장 버튼으로 내려받아 열어 보세요.</p>'; }
+}
+// ===== 환율 계산기 (어디에도 기록하지 않음) =====
+const Calc = { cur: null, src: 'market', rate: 0, date: '', a: '', k: '' };
+function calcSync(t) {
+  const fab = $('#calcFab'), on = !!(t && t.curs.length);
+  fab.hidden = !on; fab.classList.remove('away'); document.body.classList.toggle('has-fab', on); if (!on) calcClose();
+  else if (!$('#calc').hidden && !t.curs.includes(Calc.cur)) calcOpen();
+}
+function calcClose() { $('#calc').hidden = true; $('#calcFab').setAttribute('aria-expanded', 'false'); }
+function calcLot(t, c) { // 남은 환전분 중 다음에 쓸 돈의 환율
+  for (const p of computeLedger(t).pools) if (p.cur === c) { const l = p.lots.find(x => x.remaining > 0); if (l) return { rate: l.rate / l.per, date: l.date }; }
+  return null;
+}
+function calcOpen() {
+  const t = cur(); if (!t) return;
+  if (!t.curs.includes(Calc.cur)) { Calc.cur = t.curs[0]; Calc.a = Calc.k = ''; }
+  const c = Calc.cur, lot = calcLot(t, c); if (Calc.src === 'lot' && !lot) Calc.src = 'market';
+  const p = $('#calc'); p.hidden = false; $('#calcFab').setAttribute('aria-expanded', 'true');
+  p.innerHTML = `<header><b>환율 계산기</b><button type="button" class="icon-btn" data-calc="close" aria-label="계산기 닫기">✕</button></header>
+    ${t.curs.length > 1 ? `<div class="calc-curs">${t.curs.map(x => `<button type="button" data-calc="cur" data-v="${esc(x)}" aria-pressed="${x === c}">${esc(ci(x).name)}</button>`).join('')}</div>` : ''}
+    <label class="calc-row"><span>${esc(ci(c).unit.trim())}</span><input id="calc-a" inputmode="decimal" autocomplete="off" placeholder="0" value="${esc(Calc.a)}"></label>
+    <label class="calc-row"><span>원</span><input id="calc-k" inputmode="decimal" autocomplete="off" placeholder="0" value="${esc(Calc.k)}"></label>
+    <div class="calc-foot">${lot ? `<div class="calc-src"><button type="button" data-calc="src" data-v="market" aria-pressed="${Calc.src === 'market'}">오늘 환율</button><button type="button" data-calc="src" data-v="lot" aria-pressed="${Calc.src === 'lot'}">내 환전 환율</button></div>` : ''}<p class="calc-rate">환율 불러오는 중…</p></div>`;
+  calcRate();
+}
+async function calcRate() {
+  const t = cur(), c = Calc.cur; let r = null, label = '';
+  if (Calc.src === 'lot') { const l = calcLot(t, c); if (l) { r = l.rate; label = `${fmtShort(l.date)} 환전한 환율`; } }
+  else {
+    const m = await fetchRate(c, '');
+    if (m) { r = m.rate; label = `${fmtShort(m.date)} 시장 환율`; }
+    else { const lr = (t.lastRate || {})[c]; if (lr && lr.rate) { r = lr.rate / (lr.per || 1); label = '마지막으로 쓴 환율'; } }
+  }
+  if (Calc.cur !== c || $('#calc').hidden) return;
+  Calc.rate = r || 0;
+  const per = defaultPer(c), el = $('.calc-rate');
+  if (el) el.textContent = r ? `${rateText(r2(r * per), per, c)} (${label})` : '환율을 불러오지 못했어요.';
+  calcFill(Calc.k && !Calc.a ? 'k' : 'a');
+}
+function calcFill(from) {
+  const a = $('#calc-a'), k = $('#calc-k'); if (!a || !Calc.rate) return;
+  if (from === 'a') { const v = parseNum(a.value); k.value = v > 0 ? nf(Math.round(v * Calc.rate)) : ''; }
+  else { const v = parseNum(k.value); a.value = v > 0 ? nf(v / Calc.rate, ci(Calc.cur).dec || 0) : ''; }
+  Calc.a = a.value; Calc.k = k.value;
+}
+$('#calcFab').addEventListener('click', () => { if ($('#calc').hidden) calcOpen(); else calcClose(); });
+let fabY = 0;
+addEventListener('scroll', () => {
+  const y = scrollY, fab = $('#calcFab');
+  if (!fab.hidden && $('#calc').hidden) {
+    if (y > fabY + 6 && y > 80) fab.classList.add('away');
+    else if (y < fabY - 6 || y < 80) fab.classList.remove('away');
+  }
+  fabY = y;
+}, { passive: true });
+$('#calc').addEventListener('input', e => { if (e.target.id === 'calc-a') calcFill('a'); if (e.target.id === 'calc-k') calcFill('k'); });
+$('#calc').addEventListener('click', e => {
+  const b = e.target.closest('[data-calc]'); if (!b) return;
+  if (b.dataset.calc === 'close') calcClose();
+  if (b.dataset.calc === 'cur') { Calc.cur = b.dataset.v; Calc.a = Calc.k = ''; calcOpen(); }
+  if (b.dataset.calc === 'src') { Calc.src = b.dataset.v; calcOpen(); }
+});
+
+// ===== 옆으로 밀어서 탭 이동 =====
+const TAB_ORDER = ['plan', 'money', 'notes', 'check', 'diary'];
+let swipe = null;
+$('#app').addEventListener('touchstart', e => {
+  const x = e.touches[0].clientX;
+  swipe = cur() && e.touches.length === 1 && x > 24 && x < innerWidth - 24   // 화면 가장자리(폰 뒤로가기 제스처)는 피함
+    && !e.target.closest('.day-bar, .strip, .ck-tabs, .gmap-slot, .seg, .tl-drag, input, textarea, select, .lots, .kinds, .calc-panel')
+    ? { x, y: e.touches[0].clientY, t: Date.now() } : null;
+}, { passive: true });
+$('#app').addEventListener('touchend', e => {
+  const s = swipe; swipe = null; if (!s || drag) return;
+  const p = e.changedTouches[0], dx = p.clientX - s.x, dy = p.clientY - s.y;
+  if (Date.now() - s.t > 700 || Math.abs(dx) < 80 || Math.abs(dy) > Math.abs(dx) * 0.5) return;
+  const j = TAB_ORDER.indexOf(S.tab) + (dx < 0 ? 1 : -1);
+  if (j < 0 || j >= TAB_ORDER.length) return;
+  S.tab = TAB_ORDER[j]; S.openExp = null; savePrefs(); render(); window.scrollTo(0, 0);
+}, { passive: true });
+
 // ===== 일정 끌어서 순서 바꾸기 =====
 let drag = null;
 function dragMove() {
@@ -2226,7 +2433,7 @@ ACT.joinTrip = joinTripSheet;
 
 // ===== 로그인 =====
 function loginHtml() {
-  return `<header class="home-head"><h1>여행노트</h1>
+  return `<header class="home-head"><h1>TripNote</h1>
     <p>별명과 숫자 6자리 PIN으로 들어가요. 다른 폰이나 PC에서도 같은 별명과 PIN이면 내 여행이 그대로 열려요.</p></header>
     <div class="login">
       <div class="fld"><label for="lg-nick">별명</label><input id="lg-nick" maxlength="10" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="한글·영문·숫자 10자까지"></div>
