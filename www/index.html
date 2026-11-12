@@ -683,6 +683,33 @@ body{-webkit-font-smoothing:antialiased}
 .pk-tag{margin-left:6px;padding:0 6px;border-radius:999px;background:var(--surface-2);font-size:.7rem;color:var(--ink-2);vertical-align:1px}
 .pk-tobase{display:flex;align-items:center;gap:6px;margin:8px 14px 0;font-size:.82rem;color:var(--ink-2)}
 @media (prefers-reduced-motion: reduce){.pk-sec>summary::before{transition:none}}
+
+/* ===== 체크리스트: 상자 대신 선으로, 더 얇고 촘촘하게 ===== */
+.pk-sec{margin:4px 0 22px;border:0;border-radius:0;background:none}
+.pk-sec>summary{padding:8px 0 7px;border-bottom:1.5px solid var(--ink);gap:6px}
+.pk-sec>summary b{font-size:.95rem;letter-spacing:-.01em}
+.pk-sec>summary small{font-size:.76rem}
+.pk-sum{font-size:.8rem}
+.pk-sec .ck-list,.pk-sec .ck-add,.pk-sec .pk-empty{margin-left:0;margin-right:0}
+.pk-sec .pk-empty{margin-top:10px}
+.pk-sec>:last-child{margin-bottom:0}
+.ck-list li{min-height:42px;gap:10px}
+.ck-list input{width:19px;height:19px}
+.ck-list .x{width:30px;height:30px;font-size:.8rem;opacity:.55}
+.ck-list .x:hover,.ck-list .x:focus-visible{opacity:1}
+.pk-sec .ck-list li{column-gap:6px}
+.pk-count{min-height:22px;padding:0 7px;border-radius:5px;border:1px solid var(--line);background:none;font-size:.72rem;line-height:1}
+.pk-count.all{background:var(--green);border-color:var(--green);color:var(--green-ink)}
+.pk-tag{border-radius:4px;padding:0 5px;font-size:.68rem}
+/* 추가 칸: 밑줄 한 줄 + 글자 버튼 */
+.ck-add{display:flex;align-items:center;gap:4px;margin:4px 0 0;border-bottom:1px solid var(--line)}
+.ck-add:focus-within{border-bottom:1.5px solid var(--green)}
+.ck-add input{flex:1;min-width:0;min-height:42px;border:0;border-radius:0;background:none;padding:0 2px;font-size:.9rem;box-shadow:none}
+.ck-add input:focus{outline:none;box-shadow:none}
+.ck-add .btn{min-height:32px;padding:0 10px;border:0;border-radius:6px;background:none;color:var(--green);font-size:.88rem;font-weight:700;box-shadow:none}
+.ck-add .btn:active{background:var(--surface-2)}
+.pk-tobase{margin:8px 0 0;font-size:.76rem}
+.pk-tobase input{width:15px;height:15px;accent-color:var(--green)}
 </style>
 </head>
 <body>
