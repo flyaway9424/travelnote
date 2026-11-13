@@ -710,6 +710,10 @@ body{-webkit-font-smoothing:antialiased}
 .ck-add .btn:active{background:var(--surface-2)}
 .pk-tobase{margin:8px 0 0;font-size:.76rem}
 .pk-tobase input{width:15px;height:15px;accent-color:var(--green)}
+.ck-list li[data-ck]{grid-template-columns:auto minmax(0,1fr);grid-auto-flow:column;grid-auto-columns:auto}
+.ck-h0{width:30px;height:30px}
+.ck-list .ck-drag{position:static;width:30px;height:30px;font-size:1rem;opacity:.55}
+.ck-list li.dragging{position:relative;z-index:3;background:var(--surface);box-shadow:0 8px 20px rgba(0,0,0,.2);transition:none}
 </style>
 </head>
 <body>
@@ -930,13 +934,15 @@ function fmtRange(t) {
   return b && t.end !== t.start ? `${A} – ${b.getMonth() + 1}.${b.getDate()}` : A;
 }
 function daysBetween(a, b) { return Math.round((pd(b) - pd(a)) / 86400000); }
+const ckOrd = c => c.ord != null ? c.ord : c.ts;   // 체크리스트 순서: 끌어서 옮긴 값 > 추가한 시각
+const CK_H = '<button type="button" class="tl-drag ck-drag" aria-label="끌어서 순서 바꾸기">☰</button>';
 function dday(t) {
   if (!t.start) return '';
   const n = daysBetween(today(), t.start);
   if (n > 0) return 'D-' + n;
   if (n === 0) return 'D-DAY';
   if (today() <= (t.end || t.start)) return `${daysBetween(t.start, today()) + 1}일차`;
-  return '다녀온 여행';
+  return 'D+' + daysBetween(t.end || t.start, today());   // 다녀온 뒤: 돌아온 다음 날이 D+1
 }
 function tripDays(t) {
   if (!t.start) return [];
@@ -1537,7 +1543,7 @@ function tabCheck(t) {
   const g = S.ckg, my = false;
   const pk = packLists(t), pkAll = [...pk.common.map(c => iPacked(t, c)), ...pk.indiv.map(x => x.done)];
   const pool = x => t.checklist.filter(c => ckOf(c) === x);
-  const items = [...pool(g)].sort((a, b) => a.done - b.done || a.ts - b.ts); // 챙긴 건 아래로
+  const items = [...pool(g)].sort((a, b) => a.done - b.done || ckOrd(a) - ckOrd(b)); // 챙긴 건 아래로
   const done = items.filter(c => c.done).length;
   return `<nav class="ck-tabs" aria-label="목록">${tabs.map(x => { const its = pool(x);
       const cnt = x === PACK ? (pkAll.length ? `${pkAll.filter(Boolean).length}/${pkAll.length}` : '') : (its.length ? `${its.filter(c => c.done).length}/${its.length}` : '');
@@ -1546,8 +1552,8 @@ function tabCheck(t) {
     ${g === PACK ? packHtml(t) : `
     <div class="ck-add"><input id="ck-text" placeholder="${esc(g)}에 추가" autocomplete="off" aria-label="${esc(g)}에 추가할 항목"><button class="btn primary" data-act="addCheck">추가</button></div>
     <div class="ck-head"><p class="ck-progress">${items.length ? `${items.length}개 중 ${done}개 완료` : ''}</p><button class="link" data-act="ckEdit">목록 편집</button></div>
-    ${items.length ? `<ul class="ck-list">${items.map(c => `<li class="${c.done ? 'done' : ''}"><input type="checkbox" id="ck-${c.id}" data-check="${c.id}"${my ? ' data-mine="1"' : ''} ${c.done ? 'checked' : ''}><label for="ck-${c.id}"><span>${esc(c.text)}</span></label>
-      <button class="x" data-act="delCheck" data-id="${c.id}"${my ? ' data-mine="1"' : ''} aria-label="${esc(c.text)} 지우기">✕</button></li>`).join('')}</ul>`
+    ${items.length ? `<ul class="ck-list">${items.map(c => `<li class="${c.done ? 'done' : ''}" data-ck="${c.id}"><input type="checkbox" id="ck-${c.id}" data-check="${c.id}"${my ? ' data-mine="1"' : ''} ${c.done ? 'checked' : ''}><label for="ck-${c.id}"><span>${esc(c.text)}</span></label>
+      ${items.length > 1 ? CK_H : ''}<button class="x" data-act="delCheck" data-id="${c.id}"${my ? ' data-mine="1"' : ''} aria-label="${esc(c.text)} 지우기">✕</button></li>`).join('')}</ul>`
       : '<p class="empty">아직 항목이 없어요. 위 칸에 적고 추가를 누르세요.</p>'}`}`;
 }
 // ===== 준비물 =====
@@ -1586,20 +1592,20 @@ function packLists(t) {
 function packHtml(t) {
   const owner = tripOwner(t), n = crew(t).length, { common, indiv } = packLists(t);
   const open = S.ckOpen || (S.ckOpen = { common: true, indiv: true });
-  const cs = [...common].sort((a, b) => iPacked(t, a) - iPacked(t, b) || a.ts - b.ts);   // 챙긴 건 아래로
-  const is = [...indiv].sort((a, b) => a.done - b.done || a.c.ts - b.c.ts);
+  const cs = [...common].sort((a, b) => iPacked(t, a) - iPacked(t, b) || ckOrd(a) - ckOrd(b));   // 챙긴 건 아래로
+  const is = [...indiv].sort((a, b) => a.done - b.done || (a.kind === 'base' ? 0 : 1) - (b.kind === 'base' ? 0 : 1) || ckOrd(a.c) - ckOrd(b.c));
   const box = (key, id, on, kind) => `<input type="checkbox" id="ck-${id}" data-pack="${kind}" data-id="${id}" ${on ? 'checked' : ''}>`;
   return `<details class="pk-sec" data-sec="common"${open.common ? ' open' : ''}><summary><b>공용 준비물</b><small>모두 챙겨야 해요</small><span class="pk-sum">${cs.length ? `${cs.filter(c => iPacked(t, c)).length}/${cs.length}` : ''}</span></summary>
       ${cs.length ? `<ul class="ck-list">${cs.map(c => { const k = packedBy(t, c).length, mine = iPacked(t, c);
-        return `<li class="${mine ? 'done' : ''}">${box('c', c.id, mine, 'common')}<label for="ck-${c.id}"><span>${esc(c.text)}</span></label>
+        return `<li class="${mine ? 'done' : ''}" data-ck="${c.id}">${box('c', c.id, mine, 'common')}<label for="ck-${c.id}"><span>${esc(c.text)}</span></label>
         ${n > 1 ? `<button type="button" class="pk-count${k === n ? ' all' : ''}" data-act="packWho" data-id="${c.id}" aria-label="${k}명이 챙겼어요. 누가 챙겼는지 보기">${k}/${n}</button>` : ''}
-        ${owner ? `<button class="x" data-act="delPack" data-id="${c.id}" aria-label="${esc(c.text)} 지우기">✕</button>` : ''}</li>`; }).join('')}</ul>`
+        ${owner && cs.length > 1 ? CK_H : ''}${owner ? `<button class="x" data-act="delPack" data-id="${c.id}" aria-label="${esc(c.text)} 지우기">✕</button>` : ''}</li>`; }).join('')}</ul>`
         : `<p class="hint pk-empty">${owner ? '모두가 챙겨야 할 것(여권, 여행자 보험 등)을 넣어 두세요.' : '아직 공용 준비물이 없어요. 여행을 만든 사람이 정할 수 있어요.'}</p>`}
       ${owner ? `<div class="ck-add"><input id="pk-common" data-packin="common" placeholder="공용 준비물 추가" autocomplete="off" aria-label="공용 준비물 추가"><button class="btn" data-act="addPack" data-kind="common">추가</button></div>` : ''}
     </details>
     <details class="pk-sec" data-sec="indiv"${open.indiv ? ' open' : ''}><summary><b>개별 준비물</b><small>각자 따로 챙겨요</small><span class="pk-sum">${is.length ? `${is.filter(x => x.done).length}/${is.length}` : ''}</span></summary>
-      ${is.length ? `<ul class="ck-list">${is.map(({ c, kind, done }) => `<li class="${done ? 'done' : ''}">${box('i', c.id, done, kind)}<label for="ck-${c.id}"><span>${esc(c.text)}</span>${kind === 'base' ? '<small class="pk-tag">기본</small>' : ''}</label>
-        ${kind === 'own' || owner ? `<button class="x" data-act="delPack" data-id="${c.id}" data-kind="${kind}" aria-label="${esc(c.text)} 지우기">✕</button>` : ''}</li>`).join('')}</ul>`
+      ${is.length ? `<ul class="ck-list">${is.map(({ c, kind, done }) => `<li class="${done ? 'done' : ''}" data-ck="${c.id}" data-kind="${kind}"${kind === 'own' && Mine.on() ? ' data-mine="1"' : ''}>${box('i', c.id, done, kind)}<label for="ck-${c.id}"><span>${esc(c.text)}</span>${kind === 'base' ? '<small class="pk-tag">기본</small>' : ''}</label>
+        ${kind === 'own' || owner ? `${is.filter(x => x.kind === kind).length > 1 ? CK_H : '<span class="ck-h0"></span>'}<button class="x" data-act="delPack" data-id="${c.id}" data-kind="${kind}" aria-label="${esc(c.text)} 지우기">✕</button>` : ''}</li>`).join('')}</ul>`
         : '<p class="hint pk-empty">내가 챙길 것을 적어 두세요. 내가 추가한 건 나만 보여요.</p>'}
       <div class="ck-add"><input id="pk-own" data-packin="own" placeholder="${owner ? '개별 준비물 추가' : '내 준비물 추가'}" autocomplete="off" aria-label="개별 준비물 추가"><button class="btn primary" data-act="addPack" data-kind="own">추가</button></div>
       ${owner && n > 1 ? '<label class="pk-tobase"><input type="checkbox" id="pk-tobase"> 모두의 기본 목록에 넣기 (체크하지 않으면 나만 보여요)</label>' : ''}
@@ -2886,7 +2892,7 @@ function dragScroll() {
 document.addEventListener('pointerdown', e => {
   const h = e.target.closest && e.target.closest('.tl-drag'); if (!h) return;
   e.preventDefault();
-  const li = h.closest('li'), lis = $$('li[data-plan]', li.parentNode);
+  const li = h.closest('li'), lis = li.dataset.ck ? $$('li[data-ck]', li.parentNode).filter(x => x.classList.contains('done') === li.classList.contains('done') && x.dataset.kind === li.dataset.kind) : $$('li[data-plan]', li.parentNode);
   drag = { li, lis, from: lis.indexOf(li), to: lis.indexOf(li), startY: e.clientY + scrollY, client: e.clientY, h: li.offsetHeight,
     mids: lis.map(x => { const r = x.getBoundingClientRect(); return r.top + scrollY + r.height / 2; }) };
   try { h.setPointerCapture(e.pointerId); } catch {}
@@ -2899,8 +2905,15 @@ const dragEnd = e => {
   const d = drag; drag = null;
   document.body.classList.remove('dragging'); d.li.classList.remove('dragging'); d.lis.forEach(x => { x.style.transform = ''; });
   if (e.type === 'pointercancel' || d.to === d.from) return;
-  const ids = d.lis.map(x => x.dataset.plan), [m] = ids.splice(d.from, 1); ids.splice(d.to, 0, m);
-  const t = cur(); ids.forEach((id, k) => { const p = t.plans.find(x => x.id === id); if (p) p.ord = k; });
+  const t = cur();
+  if (d.li.dataset.ck) {   // 체크리스트: 같은 묶음 안에서 순서 값만 서로 바꿔 가짐
+    const mine = d.li.dataset.mine, src = mine ? Mine.data.checklist : t.checklist;
+    const its = d.lis.map(x => src.find(c => c.id === x.dataset.ck)).filter(Boolean), slots = its.map(ckOrd), ids = its.map(c => c.id);
+    const [m] = ids.splice(d.from, 1); ids.splice(d.to, 0, m);
+    ids.forEach((id, k) => { const c = src.find(x => x.id === id); if (c.ord !== slots[k]) { c.ord = slots[k]; if (mine) Mine.put('checklist', c); } });
+    if (!mine) Store.save(t); render(); return;
+  }
+  const ids = d.lis.map(x => x.dataset.plan), [m] = ids.splice(d.from, 1); ids.splice(d.to, 0, m); ids.forEach((id, k) => { const p = t.plans.find(x => x.id === id); if (p) p.ord = k; });
   Store.save(t); render();
 };
 document.addEventListener('pointerup', dragEnd);
