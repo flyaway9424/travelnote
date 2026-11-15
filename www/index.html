@@ -723,6 +723,16 @@ body{-webkit-font-smoothing:antialiased}
 .bk-cnt .chev{display:inline-flex;margin-left:4px;transform:rotate(-90deg);opacity:.7}
 .is-btn.on .bk-cnt{background:var(--green);border-color:var(--green);color:var(--green-ink)}
 .is-btn.on .bk-cnt .chev{transform:rotate(90deg)}
+.split-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.mini-btn{border:1px solid var(--line);background:none;border-radius:999px;padding:6px 12px;font:inherit;font-size:.82rem;font-weight:600;color:var(--green)}
+.chips[hidden],.sp-box[hidden]{display:none!important}
+.sp-list{margin:6px 0 0;border-top:2px solid var(--ink)}
+.ck-list.sp-list li{grid-template-columns:auto minmax(0,1fr) auto}
+.sp-amt{display:flex;align-items:baseline;gap:4px}
+.fld .sp-amt input{width:6.5em;min-height:0;text-align:right;font-weight:600;border:0;border-bottom:1px solid var(--line);border-radius:0;background:none;padding:4px 2px}
+.fld .sp-amt input:focus{outline:none;border-bottom-color:var(--green)}
+.fld .sp-amt input:disabled{opacity:.35}
+.sp-amt em{font-style:normal;color:var(--ink-2);font-size:.8rem}
 </style>
 </head>
 <body>
@@ -851,12 +861,16 @@ function computeLedger(trip) {
     const payer = x.payer || members[0];
     (out.members[payer] || (out.members[payer] = { paid: 0, share: 0 })).paid += r.krw;
     const split = (x.split && x.split.length) ? x.split : members;
-    const base = Math.floor(r.krw / split.length);
-    let rem = r.krw - base * split.length;
-    for (const n of split) {
-      (out.members[n] || (out.members[n] = { paid: 0, share: 0 })).share += base + (rem > 0 ? 1 : 0);
-      if (rem > 0) rem--;
-    }
+    const give = (n, v) => { (out.members[n] || (out.members[n] = { paid: 0, share: 0 })).share += v; };
+    // 금액을 직접 나눈 지출: 적은 사람은 그 금액(통화 비율대로 원화로 환산), 나머지는 빈 칸인 사람들이 똑같이 나눔
+    const fixed = {}; let used = 0;
+    if (x.shares && amt > 0) for (const n of split) { const v = +x.shares[n]; if (v > 0) { fixed[n] = Math.min(r.krw - used, Math.round(r.krw * v / amt)); used += fixed[n]; } }
+    const rest = split.filter(n => !(n in fixed)), left = r.krw - used;
+    for (const n in fixed) give(n, fixed[n]);
+    if (rest.length) {
+      const base = Math.floor(left / rest.length); let rem = left - base * rest.length;
+      for (const n of rest) { give(n, base + (rem > 0 ? 1 : 0)); if (rem > 0) rem--; }
+    } else if (left) give(Object.keys(fixed).pop(), left);   // 전부 적었는데 반올림 차이가 남으면 마지막 사람이 가져감
   }
 
   for (const p of pools.values()) {
@@ -1280,7 +1294,7 @@ function expRow(t, L, x, dt) {
   return `<li class="row ${open ? 'open' : ''}"><button class="row-main" data-act="toggleExp" data-id="${x.id}" aria-expanded="${open}">
     <span class="cat" aria-hidden="true">${catIc(x.cat)}</span>
     <span class="row-txt"><span class="row-title">${esc(x.memo || x.cat || '지출')}</span>
-      <span class="row-meta">${dt ? `<span>${esc(fmtShort(x.date))}</span>` : ''}<span class="badge b-${r.kind}">${kindLabel(x, r)}</span>${x.time ? `<span>${esc(x.time)}</span>` : ''}${t.members.length > 1 ? `<span>${esc(x.payer || t.members[0])} 결제</span>` : ''}${r.short ? '<span class="warn-t">잔액 부족</span>' : ''}${(x.photos || []).length ? '<span>📎</span>' : ''}</span></span>
+      <span class="row-meta">${dt ? `<span>${esc(fmtShort(x.date))}</span>` : ''}${x.shares ? '<span>직접 나눔</span>' : ''}<span class="badge b-${r.kind}">${kindLabel(x, r)}</span>${x.time ? `<span>${esc(x.time)}</span>` : ''}${t.members.length > 1 ? `<span>${esc(x.payer || t.members[0])} 결제</span>` : ''}${r.short ? '<span class="warn-t">잔액 부족</span>' : ''}${(x.photos || []).length ? '<span>📎</span>' : ''}</span></span>
     <span class="row-amt">${x.cur !== t.home ? `<span class="fx">${money(x.amount, x.cur)}</span>` : ''}<span class="krw">${won(r.krw)}</span></span></button>
     ${open ? `<div class="row-detail"><div class="rd-body">${breakdownHtml(x, r)}${x.note ? `<p class="tl-memo">${esc(x.note)}</p>` : ''}${(x.photos || []).length ? `<div class="thumbs">${thumbsHtml(x.photos)}</div>` : ''}</div>
       <button class="rd-edit" data-act="editExp" data-id="${x.id}" aria-label="수정"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg></button></div>` : ''}</li>`;
@@ -1902,6 +1916,7 @@ function sheetExpense(t, id) {
   const d = old ? clone(old) : { id: uid('e_'), date: date0, time: '', cur: c0, amount: '', method: hasLots(c0) ? 'cash' : 'live',
     wallet: '현금', cat: '식비', memo: '', note: '', payer: S.user && t.members.includes(S.user.nick) ? S.user.nick : t.members[0], split: [], photos: [], ts: Date.now() };
   d.photos = d.photos || []; d.split = d.split || []; d.per = +d.per || defaultPer(d.cur);
+  d.shares = d.shares || {}; d.shareOn = Object.keys(d.shares).length > 0;
   if (d.method !== 'live') { const lr = latestRate(t, d.cur); d.rate = lr ? lr.rate : ''; d.per = lr ? lr.per : defaultPer(d.cur); d.krw = ''; }
   const fresh = []; let saved = false;
   const multi = t.members.length > 1;
@@ -1922,7 +1937,8 @@ function sheetExpense(t, id) {
     <div class="fld"><label for="f-memo">내용</label><input id="f-memo" value="${esc(d.memo)}" placeholder="예: 라멘 가게" autocomplete="off"></div>
     <div class="fld"><label for="f-note">자세한 메모</label><textarea id="f-note" style="min-height:70px" placeholder="품목, 번역 등">${esc(d.note || '')}</textarea></div>
     ${multi ? `<div class="fld"><label for="f-payer">낸 사람</label><select id="f-payer">${t.members.map(m => `<option ${m === d.payer ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></div>
-    <div class="fld"><span class="fl">같이 쓴 사람</span><div class="chips" data-split>${t.members.map(m => `<button type="button" data-v="${esc(m)}" aria-pressed="${!d.split.length || d.split.includes(m)}">${esc(m)}</button>`).join('')}</div></div>` : ''}
+    <div class="fld"><div class="split-top"><span class="fl">같이 쓴 사람</span><button type="button" class="mini-btn" data-sharetog>${d.shareOn ? '똑같이 나누기' : '수기계산'}</button></div><div class="chips" data-split>${t.members.map(m => `<button type="button" data-v="${esc(m)}" aria-pressed="${!d.split.length || d.split.includes(m)}">${esc(m)}</button>`).join('')}</div>
+    <div class="sp-box" data-shares hidden></div><p class="hint" data-sharehint></p></div>` : ''}
     ${attachField('사진·영수증')}
     <div class="sheet-foot">${old ? '<button class="btn danger" data-del>삭제</button>' : ''}<button class="btn primary" data-save>${old ? '수정 저장' : '기록하기'}</button></div>`;
 
@@ -1997,7 +2013,36 @@ function sheetExpense(t, id) {
         const on = $$('button[aria-pressed="true"]', e.currentTarget).map(x => x.dataset.v);
         if (!on.length) { b.setAttribute('aria-pressed', 'true'); toast('한 명 이상 골라 주세요.'); return; }
         d.split = on.length === t.members.length ? [] : on;
+        if (d.shareOn) drawShares();
       };
+      const shBox = $('[data-shares]', root), shTog = $('[data-sharetog]', root), shHint = $('[data-sharehint]', root), chipBox = $('[data-split]', root);
+      const who = () => d.split.length ? d.split : t.members, unit = () => d.cur === t.home ? '원' : d.cur;
+      const hint = () => {
+        if (!d.shareOn) { shHint.textContent = ''; return; }
+        const total = parseNum(d.amount) || 0, on = who(), vals = on.map(n => parseNum(d.shares[n]) || 0), sum = vals.reduce((p, q) => p + q, 0);
+        const blank = on.filter((n, i) => !(vals[i] > 0)), auto = blank.length && total > sum ? (total - sum) / blank.length : 0;
+        shHint.textContent = !(total > 0) ? '위에서 총 금액을 먼저 넣어 주세요.' : sum > total + 0.005 ? '적은 금액의 합이 총액보다 커요.'
+          : blank.length ? `남은 ${nf(total - sum, 2)}${unit()}은 ${blank.join(', ')}이(가) ${nf(auto, 2)}${unit()}씩 나눠요.` : Math.abs(sum - total) > 0.005 ? `모두 적으면 합이 총액과 같아야 해요 (차이 ${nf(total - sum, 2)}${unit()}).` : '';
+        $$('.sp-amt em', root).forEach(e => { e.textContent = unit(); });
+        $$('.sp-amt input', root).forEach(i => { const n = i.dataset.sh, off = !on.includes(n); i.disabled = off; i.placeholder = !off && blank.includes(n) && auto > 0 ? nf(auto, 2) : ''; });
+      };
+      function drawShares() {
+        shTog.textContent = d.shareOn ? '똑같이 나누기' : '수기계산';
+        chipBox.hidden = d.shareOn; shBox.hidden = !d.shareOn;
+        shBox.innerHTML = d.shareOn ? `<ul class="ck-list sp-list">${t.members.map((n, i) => `<li><input type="checkbox" id="sp-${i}" data-sp="${esc(n)}" ${who().includes(n) ? 'checked' : ''}><label for="sp-${i}">${esc(n)}</label><span class="sp-amt"><input inputmode="decimal" autocomplete="off" data-sh="${esc(n)}" value="${esc(d.shares[n] || '')}" aria-label="${esc(n)} 금액"><em></em></span></li>`).join('')}</ul>` : '';
+        hint();
+      }
+      shTog.onclick = () => { d.shareOn = !d.shareOn; drawShares(); };
+      shBox.oninput = e => { const n = e.target.dataset.sh; if (n != null) { d.shares[n] = e.target.value; hint(); } };
+      shBox.onchange = e => {   // 체크 = 이 사람도 같이 쓴 사람
+        const n = e.target.dataset.sp; if (n == null) return;
+        const on = t.members.filter(m => m === n ? e.target.checked : who().includes(m));
+        if (!on.length) { e.target.checked = true; toast('한 명 이상 골라 주세요.'); return; }
+        d.split = on.length === t.members.length ? [] : on; hint();
+      };
+      root.addEventListener('input', e => { if (d.shareOn && e.target.id === 'f-amt') hint(); });
+      root.addEventListener('click', () => { if (d.shareOn) setTimeout(hint, 0); });
+      drawShares();
     }
     bindAttach(root, d.photos, fresh, 'image/*,application/pdf');
 
@@ -2027,7 +2072,17 @@ function sheetExpense(t, id) {
       const a = parseNum(d.amount);
       if (!(a > 0)) { toast('금액을 입력해 주세요.'); amt.focus(); return; }
       if (!d.date) { toast('날짜를 골라 주세요.'); return; }
+      let shares = null;
+      if (multi && d.shareOn) {
+        const on = d.split.length ? d.split : t.members; shares = {}; let sum = 0;
+        for (const n of on) { const v = parseNum(d.shares[n]); if (v > 0) { shares[n] = v; sum += v; } }
+        const cnt = Object.keys(shares).length;
+        if (!cnt) shares = null;
+        else if (sum > a + 0.005) { toast('적은 금액의 합이 총액보다 커요.'); return; }
+        else if (cnt === on.length && Math.abs(sum - a) > 0.005) { toast('모두 적으면 합이 총액과 같아야 해요.'); return; }
+      }
       const rec = { ...d, amount: a, rate: 0, krw: null, per: +d.per || defaultPer(d.cur) };
+      delete rec.shareOn; if (shares) rec.shares = shares; else delete rec.shares;
       if (d.cur === t.home) rec.method = 'home';
       else if (d.method === 'live') {
         const r = parseNum(d.rate), k = parseNum(d.krw);
@@ -2551,7 +2606,7 @@ const fmtCode = c => c ? c.slice(0, 3) + '-' + c.slice(3) : '';
 // 함께 가는 사람 이름 바꾸기 (지출의 낸 사람·같이 쓴 사람까지)
 function renameMember(t, a, b) {
   t.members = [...new Set(t.members.map(m => m === a ? b : m))];
-  for (const x of t.expenses) { if (x.payer === a) x.payer = b; if (Array.isArray(x.split)) x.split = [...new Set(x.split.map(m => m === a ? b : m))]; }
+  for (const x of t.expenses) { if (x.payer === a) x.payer = b; if (Array.isArray(x.split)) x.split = [...new Set(x.split.map(m => m === a ? b : m))]; if (x.shares && a in x.shares) { x.shares[b] = x.shares[a]; delete x.shares[a]; } }
 }
 function shareMsg(e) {
   const c = (e && e.code) || '';
