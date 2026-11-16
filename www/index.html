@@ -733,6 +733,22 @@ body{-webkit-font-smoothing:antialiased}
 .fld .sp-amt input:focus{outline:none;border-bottom-color:var(--green)}
 .fld .sp-amt input:disabled{opacity:.35}
 .sp-amt em{font-style:normal;color:var(--ink-2);font-size:.8rem}
+.settle-share{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.settle-img{display:block;width:100%;border-radius:12px;border:1px solid var(--line);margin-top:8px}
+.settle-btns{display:flex;gap:8px;margin-top:12px}
+.settle-btns .btn{flex:1}
+.sm-seg{display:grid;grid-template-columns:1fr 1fr;padding:3px;border-radius:12px;background:var(--surface-2);margin:4px 0 8px}
+.sm-seg button{border:0;border-radius:9px;padding:9px;background:none;font:inherit;font-weight:600;color:var(--ink-2)}
+.sm-seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+.sm-edit{margin-top:18px}
+.fld .sm-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:6px 0;font-size:1rem}
+.sm-lbl{display:block;margin-top:10px;font-size:.84rem;color:var(--ink-2)}
+.sm-edit textarea{width:100%;margin-top:4px}
+.sm-edit #sm-bank{width:100%;margin-top:6px}
+.bank-chk{display:flex;align-items:flex-start;gap:10px;margin-top:12px;font-weight:600}
+.bank-chk input{width:22px;height:22px;margin-top:1px;accent-color:var(--green)}
+.bank-chk small{display:block;margin-top:2px;font-weight:400;color:var(--ink-2)}
+.settle-ta{width:100%;min-height:42vh;margin-top:8px;font-size:.9rem;line-height:1.5}
 </style>
 </head>
 <body>
@@ -1356,13 +1372,168 @@ function statsHtml(t, L) {
     <section class="stat"><h3>날짜별</h3>${barsHtml(days, maxDay)}</section>
     ${ppl ? `<section class="stat"><h3>사람별</h3>${barsHtml(ppl, Math.max(1, ...ppl.map(p => p[1])))}</section>` : ''}`;
 }
+// ----- 내 입금 계좌 (정산표에 넣을 한 줄): 로그인했으면 내 계정의 '나만 보는 곳', 아니면 이 기기에만 저장 -----
+// 나만 보는 기록 저장소를 그대로 쓰므로 보안 규칙을 바꿀 필요가 없다 (여행이 아닌 '_profile' 칸에 보관)
+const Bank = {
+  text: '', loaded: false,
+  async load() {
+    if (this.loaded) return this.text;
+    if (Mine.on()) {
+      this.text = await new Promise(res => {
+        let un = null, done = false;
+        const fin = v => { if (done) return; done = true; res(v); setTimeout(() => un && un(), 0); };
+        un = window.TN.mine.watch('_profile', (d, e) => fin(e || !d ? '' : ((d.checklist || []).find(x => x.id === 'bank') || {}).text || ''));
+        setTimeout(() => fin(''), 4000);
+      });
+    } else { try { this.text = localStorage.getItem('travelnote:bank') || ''; } catch { this.text = ''; } }
+    this.loaded = true; return this.text;
+  },
+  async save(text) {
+    this.text = text; this.loaded = true;
+    if (Mine.on()) await window.TN.mine.put('_profile', 'checklist', { id: 'bank', text, done: false, ts: Date.now() }).catch(mineFail);
+    else { try { localStorage.setItem('travelnote:bank', text); } catch { /* 저장 공간이 없으면 건너뜀 */ } }
+  },
+};
+const bankUse = {   // '입금 계좌 넣기' 체크 상태 (기본: 체크)
+  get() { try { return localStorage.getItem('travelnote:bankOn') !== '0'; } catch { return true; } },
+  set(on) { try { localStorage.setItem('travelnote:bankOn', on ? '1' : '0'); } catch { /* 저장 공간이 없으면 건너뜀 */ } },
+};
+function sheetBank() {
+  openSheet(sheetHead('내 입금 계좌') + `<p class="hint" style="margin-top:8px">정산표에 넣을 한 줄이에요. 같이 간 사람에게는 보이지 않고, 정산표를 만들 때만 들어가요. ${Mine.on() ? '내 계정에 저장돼서 다른 기기에서도 보여요.' : '로그인하지 않아서 이 기기에만 저장돼요.'}</p>
+    <div class="fld"><label for="bank-in">입금 계좌</label><input id="bank-in" maxlength="60" autocomplete="off" placeholder="예) 국민 123-456-789012 홍길동" disabled></div>
+    <div class="settle-btns"><button type="button" class="btn primary" data-bank-save>저장</button><button type="button" class="btn" data-bank-clear>지우기</button></div>`,
+  async body => {
+    const inp = $('#bank-in', body); inp.value = await Bank.load(); inp.disabled = false; inp.focus();
+    $('[data-bank-save]', body).onclick = async () => { await Bank.save(inp.value.trim()); toast('저장했어요'); closeSheet(); };
+    $('[data-bank-clear]', body).onclick = async () => { await Bank.save(''); toast('지웠어요'); closeSheet(); };
+  });
+}
+// ----- 정산표 보내기: 글(복사·공유)과 이미지 -----
+const settleRange = t => t.start ? t.start.replace(/-/g, '.') + (t.end && t.end !== t.start ? ` – ${fmtShort(t.end)}` : '') : '';
+const bankWho = () => S.user && S.user.nick ? ` (${S.user.nick})` : '';
+function settleTextOf(t, L, bank, tf = L.transfers, note = '') {
+  const out = [`[${t.name} 정산]`, ...(settleRange(t) ? [settleRange(t)] : []), '원화로 환산한 금액 기준이에요.', '', '■ 사람별'];
+  for (const [n, v] of Object.entries(L.members)) { const net = v.paid - v.share; out.push(`${n}: 결제 ${won(v.paid)} / 부담 ${won(v.share)} → ${net > 0 ? '받을 돈 ' + won(net) : net < 0 ? '보낼 돈 ' + won(-net) : '정산 없음'}`); }
+  out.push('', '■ 이렇게 보내면 정산 끝');
+  if (tf.length) tf.forEach(x => out.push(`${x.from} → ${x.to}  ${won(x.krw)}`)); else out.push('보낼 돈이 없어요.');
+  if (bank) out.push('', `■ 입금 계좌${bankWho()}`, bank);
+  if (note) out.push('', note);
+  return out.join('\n');
+}
+// 복사: 최신 방식 → 옛 방식 → 안 되면 false (화면 안내로 넘김)
+async function copyText(text) {
+  try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; } } catch { /* 아래 방법으로 */ }
+  try {
+    const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+    document.body.append(ta); ta.select(); ta.setSelectionRange(0, text.length); const ok = document.execCommand('copy'); ta.remove(); return ok;
+  } catch { return false; }
+}
+async function settleBlob(t, L, o = {}) {
+  const bank = o.bank || '', note = o.note || '', tf = o.tf || L.transfers;
+  const FONT = '"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif', K = 2, W = 720, P = 40;
+  try { await Promise.all([document.fonts.load(`400 24px ${FONT}`), document.fonts.load(`700 24px ${FONT}`)]); } catch { /* 글꼴을 못 불러와도 기본 글꼴로 그려요 */ }
+  const rows = Object.entries(L.members);
+  const mctx = document.createElement('canvas').getContext('2d'); mctx.font = `400 24px ${FONT}`;
+  const noteLines = note ? (() => { const out = []; for (const para of note.split('\n')) { let line = ''; for (const ch of para) { if (line && mctx.measureText(line + ch).width > W - P * 2) { out.push(line); line = ch; } else line += ch; } out.push(line); } return out.slice(0, 8); })() : [];
+  const H = 150 + 56 + rows.length * 60 + 40 + 56 + Math.max(1, tf.length) * 70 + (bank ? 98 : 0) + (noteLines.length ? 16 + noteLines.length * 34 : 0) + 70;
+  const c = document.createElement('canvas'); c.width = W * K; c.height = H * K;
+  const x = c.getContext('2d'); x.scale(K, K);
+  const col = { bg: '#FBF9F4', ink: '#2B2A27', mute: '#7B776E', line: '#E3DED2', green: '#4F6B58', terra: '#C0583B', card: '#F1EEE6' };
+  const txt = (str, px, py, size, w = 400, color = col.ink, align = 'left', maxW = 0) => {
+    x.font = `${w} ${size}px ${FONT}`; x.fillStyle = color; x.textAlign = align; x.textBaseline = 'alphabetic';
+    let q = String(str); if (maxW) while (q.length > 1 && x.measureText(q).width > maxW) q = q.slice(0, -2) + '…';
+    x.fillText(q, px, py);
+  };
+  const box = (py, h) => { x.fillStyle = col.card; x.beginPath(); if (x.roundRect) x.roundRect(P, py, W - P * 2, h, 12); else x.rect(P, py, W - P * 2, h); x.fill(); };
+  x.fillStyle = col.bg; x.fillRect(0, 0, W, H);
+  txt(`${t.name} 정산`, P, 78, 36, 700, col.ink, 'left', W - P * 2);
+  txt(`${settleRange(t)}${settleRange(t) ? ' · ' : ''}원화 기준`, P, 116, 22, 400, col.mute);
+  let y = 150; x.fillStyle = col.ink; x.fillRect(P, y, W - P * 2, 2);
+  y += 38; txt('이름', P, y, 20, 700, col.mute); txt('결제', 300, y, 20, 700, col.mute, 'right'); txt('부담', 470, y, 20, 700, col.mute, 'right'); txt('받을·보낼 돈', W - P, y, 20, 700, col.mute, 'right');
+  y += 18;
+  for (const [n, v] of rows) {
+    const net = v.paid - v.share;
+    x.fillStyle = col.line; x.fillRect(P, y, W - P * 2, 1); y += 38;
+    txt(n, P, y, 24, 600, col.ink, 'left', 120); txt(won(v.paid), 300, y, 22, 400, col.ink, 'right'); txt(won(v.share), 470, y, 22, 400, col.ink, 'right');
+    txt(net > 0 ? `받을 돈 ${won(net)}` : net < 0 ? `보낼 돈 ${won(-net)}` : '없음', W - P, y, 22, 700, net > 0 ? col.green : net < 0 ? col.terra : col.mute, 'right'); y += 22;
+  }
+  x.fillStyle = col.line; x.fillRect(P, y, W - P * 2, 1); y += 40;
+  txt('이렇게 보내면 정산 끝', P, y + 16, 26, 700); y += 56;
+  if (tf.length) for (const f of tf) { box(y, 58); txt(`${f.from} → ${f.to}`, P + 20, y + 37, 26, 600, col.ink, 'left', 380); txt(won(f.krw), W - P - 20, y + 38, 28, 700, col.green, 'right'); y += 70; }
+  else { box(y, 58); txt('보낼 돈이 없어요.', P + 20, y + 37, 24, 400, col.mute); y += 70; }
+  if (bank) { txt(`입금 계좌${bankWho()}`, P, y + 14, 20, 700, col.mute); box(y + 28, 58); txt(bank, P + 20, y + 65, 26, 600, col.ink, 'left', W - P * 2 - 40); y += 98; }
+  if (noteLines.length) { y += 16; noteLines.forEach((ln, i) => txt(ln, P, y + 24 + i * 34, 24, 400, col.ink)); y += noteLines.length * 34; }
+  txt('TripNote', P, H - 28, 18, 400, col.mute); txt('원화로 환산한 금액 기준이에요', W - P, H - 28, 18, 400, col.mute, 'right');
+  return new Promise(r => c.toBlob(r, 'image/png'));
+}
+// 정산표 창: 이미지/글 보기 + 보내기 전에 금액·추가 문구·계좌를 고칠 수 있다 (고친 내용은 이 정산표에만 쓰임)
+async function sheetSettle(t, mode) {
+  const L = computeLedger(t), saved = await Bank.load();
+  const d = { mode, amt: L.transfers.map(x => String(x.krw)), note: '', bank: saved || '', bankOn: !!saved && bankUse.get() };
+  const name = `정산표_${fileSafe(t.name)}.png`; let url = null, file = null, timer = 0, seq = 0;
+  const now = () => ({
+    bank: d.bankOn ? d.bank.trim() : '', note: d.note.trim(),
+    tf: L.transfers.map((x, i) => ({ ...x, krw: parseNum(d.amt[i]) > 0 ? parseNum(d.amt[i]) : x.krw })),
+  });
+  const mkImg = async () => {
+    const blob = await settleBlob(t, L, now()); if (!blob) return false;
+    if (url) URL.revokeObjectURL(url);
+    url = URL.createObjectURL(blob); file = new File([blob], name, { type: 'image/png' }); return true;
+  };
+  openSheet(sheetHead('정산표') + `<div class="smw">
+    <div class="sm-seg"><button type="button" data-smode="img" class="${mode === 'img' ? 'on' : ''}">이미지</button><button type="button" data-smode="text" class="${mode === 'text' ? 'on' : ''}">글</button></div>
+    <div data-prev></div><div class="settle-btns" data-sact></div>
+    <div class="fld sm-edit"><span class="fl">보내기 전에 고치기</span>
+      ${L.transfers.length ? L.transfers.map((x, i) => `<label class="sm-row"><span>${esc(x.from)} → ${esc(x.to)}</span><span class="sp-amt"><input inputmode="decimal" autocomplete="off" data-samt="${i}" value="${esc(gnum(x.krw))}" aria-label="${esc(x.from)}가 보낼 금액"><em>원</em></span></label>`).join('') : '<p class="hint">보낼 돈이 없어서 고칠 금액이 없어요.</p>'}
+      <label class="sm-lbl" for="sm-note">추가 문구</label><textarea id="sm-note" rows="2" maxlength="200" placeholder="예) 이번 주 안에 보내 주세요. 수고했어요!"></textarea>
+      <label class="bank-chk"><input type="checkbox" data-bankchk${d.bankOn ? ' checked' : ''}><span>입금 계좌 넣기</span></label>
+      <input id="sm-bank" maxlength="60" autocomplete="off" placeholder="예) 국민 123-456-789012 홍길동" value="${esc(d.bank)}">
+      <p class="hint" style="margin-top:6px">여기서 고친 내용은 이 정산표에만 쓰여요. 계좌를 계속 바꿔 두려면 <button type="button" class="link" data-act="bank">내 입금 계좌</button>에서 고치세요. 사람별 표의 숫자는 그대로예요.</p></div></div>`,
+  root => {
+    const w = $('.smw', root), prev = $('[data-prev]', w), act = $('[data-sact]', w), chk = $('[data-bankchk]', w);
+    const draw = async () => {
+      const my = ++seq;
+      if (d.mode === 'text') {
+        const o = now(), text = settleTextOf(t, L, o.bank, o.tf, o.note);
+        prev.innerHTML = `<textarea readonly class="settle-ta" data-ta>${esc(text)}</textarea><p class="hint" style="margin-top:8px">복사가 안 되면 글을 길게 눌러 전체 선택 후 복사하세요.</p>`;
+        act.innerHTML = `<button type="button" class="btn primary" data-scopy>복사하기</button>${navigator.share ? '<button type="button" class="btn" data-sshare>공유하기</button>' : ''}`;
+        const ta = $('[data-ta]', prev);
+        $('[data-scopy]', act).onclick = async () => { if (await copyText(text)) toast('복사했어요. 카톡에 붙여넣어 보내세요.'); else { ta.focus(); ta.select(); toast('길게 눌러 복사해 주세요.'); } };
+        const sh = $('[data-sshare]', act);
+        if (sh) sh.onclick = async () => { try { await navigator.share({ text }); } catch (e) { if (!(e && e.name === 'AbortError')) toast('공유하지 못했어요. 복사를 이용해 주세요.'); } };
+      } else {
+        if (!await mkImg()) { toast('이미지를 만들지 못했어요'); return; }
+        if (my !== seq) return;   // 더 새로운 요청이 있으면 이 결과는 버림
+        const can = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+        prev.innerHTML = `<img class="settle-img" src="${url}" alt="${esc(t.name)} 정산표"><p class="hint" style="margin-top:8px">${can ? '공유하기로 카톡 등에 바로 보낼 수 있어요.' : '저장한 이미지를 카톡에 첨부해 보내세요. 저장이 안 되면 이미지를 길게 누르거나 화면을 캡처하세요.'}</p>`;
+        act.innerHTML = `${can ? '<button type="button" class="btn primary" data-simg-share>공유하기</button>' : ''}<a class="btn${can ? '' : ' primary'}" href="${url}" download="${esc(name)}">이미지 저장</a>`;
+        const b = $('[data-simg-share]', act);
+        if (b) b.onclick = async () => { try { await navigator.share({ files: [file], title: name }); } catch (e) { if (!(e && e.name === 'AbortError')) toast('공유하지 못했어요. 이미지 저장을 이용해 주세요.'); } };
+      }
+    };
+    const later = () => { clearTimeout(timer); timer = setTimeout(draw, d.mode === 'img' ? 300 : 0); };
+    w.oninput = e => {
+      const el = e.target;
+      if (el.dataset.samt != null) d.amt[+el.dataset.samt] = el.value;
+      else if (el.id === 'sm-note') d.note = el.value;
+      else if (el.id === 'sm-bank') { d.bank = el.value; if (el.value.trim() && !d.bankOn) { d.bankOn = true; chk.checked = true; } }
+      else return;
+      later();
+    };
+    chk.onchange = () => { d.bankOn = chk.checked; bankUse.set(d.bankOn); later(); };
+    w.onclick = e => { const b = e.target.closest('[data-smode]'); if (!b) return; d.mode = b.dataset.smode; $$('[data-smode]', w).forEach(x => x.classList.toggle('on', x === b)); draw(); };
+    draw();
+  },
+  () => { clearTimeout(timer); if (url) URL.revokeObjectURL(url); });
+}
 function settleHtml(t, L) {
   if (t.members.length < 2) return `<p class="empty">함께 가는 사람을 <button class="link" data-act="tripSettings">여행 설정</button>에서 추가하면, 누가 누구에게 얼마를 보내면 되는지 계산해 드려요.</p>`;
   const rows = Object.entries(L.members).map(([n, v]) => { const net = v.paid - v.share;
     return `<tr><td>${esc(n)}</td><td>${won(v.paid)}</td><td>${won(v.share)}</td><td class="${net > 0 ? 'plus' : net < 0 ? 'minus' : ''}">${net > 0 ? '받을 돈 ' + won(net) : net < 0 ? '보낼 돈 ' + won(-net) : '없음'}</td></tr>`; }).join('');
   return `<div class="tbl-wrap stat"><table><thead><tr><th>이름</th><th>결제한 금액</th><th>부담할 금액</th><th>차액</th></tr></thead><tbody>${rows}</tbody></table></div>
     <section class="stat"><h3>이렇게 보내면 정산 끝</h3>${L.transfers.length ? `<ul class="transfers">${L.transfers.map(x => `<li><span>${esc(x.from)} → ${esc(x.to)}</span><b>${won(x.krw)}</b></li>`).join('')}</ul>` : '<p class="muted">보낼 돈이 없어요.</p>'}
-    <p class="hint" style="margin-top:8px">원화로 환산한 금액 기준이에요. 지출마다 같이 쓴 사람을 고르면 그 사람들끼리만 나눠요.</p></section>`;
+    <p class="hint" style="margin-top:8px">원화로 환산한 금액 기준이에요. 지출마다 같이 쓴 사람을 고르면 그 사람들끼리만 나눠요.</p>
+    <div class="settle-share"><button type="button" class="btn small" data-act="settleText">정산표 복사·공유</button><button type="button" class="btn small" data-act="settleImg">정산표 이미지</button><button type="button" class="btn small" data-act="bank">내 입금 계좌</button></div></section>`;
 }
 
 // ----- 일정 -----
@@ -2611,7 +2782,7 @@ function sheetTrip(t) {
       closeSheet(); render();
     };
     if (!isNew) {
-      $('[data-backup]', root).onclick = () => saveFile(`여행노트_${fileSafe(t.name)}.json`, JSON.stringify({ app: 'travelnote', version: 1, exportedAt: new Date().toISOString(), trip: t }, null, 1));
+      $('[data-backup]', root).onclick = () => saveFile(`여행노트_${fileSafe(t.name)}.json`, JSON.stringify({ app: 'travelnote', version: 1, exportedAt: new Date().toISOString(), settlement: (({ members, transfers }) => ({ members, transfers }))(computeLedger(t)), trip: t }, null, 1));
       $('[data-csv]', root).onclick = () => saveFile(`여행노트_${fileSafe(t.name)}_지출.csv`, csvOf(t));
       bindShare(t, root);
       const del = $('[data-deltrip]', root);
@@ -2708,15 +2879,23 @@ function joinTripSheet() {
 function fileSafe(s) { return String(s || '여행').replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 60); }
 function csvOf(t) {
   const L = computeLedger(t);
-  const q = v => { let s = String(v ?? ''); if (/^[=+\-@]/.test(s)) s = "'" + s; return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-  const head = ['날짜', '시간', '분류', '내용', '통화', '외화 금액', '결제 방식', '적용 환율', '원화 금액', '낸 사람', '계산 내역', '메모'];
+  const q = v => { let s = String(v ?? ''); if (typeof v !== 'number' && /^[=+\-@]/.test(s)) s = "'" + s; return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const head = ['날짜', '시간', '분류', '내용', '통화', '외화 금액', '결제 방식', '적용 환율', '원화 금액', '낸 사람', '같이 쓴 사람', '직접 나눔(해당 통화)', '계산 내역', '메모'];
   const rows = [...t.expenses].sort(byOrd).map(x => {
     const r = L.exp[x.id];
     const rateCol = r.kind === 'live' ? rateText(r.rate, r.per, x.cur) : r.kind === 'cash' ? r.parts.map(p => rateText(p.rate, p.per, x.cur)).join(' / ') : '';
     const calc = r.kind === 'cash' ? r.parts.map(p => `${p.short ? '잔액 부족분' : fmtShort(p.date) + ' 환전분'} ${money(p.amount, x.cur)} = ${won(p.krw)}`).join(' / ') : '';
-    return [x.date, x.time || '', x.cat || '', x.memo || '', x.cur, x.amount, kindLabel(x, r), rateCol, r.krw, x.payer || t.members[0], calc, x.note || ''];
+    const who = x.split && x.split.length ? x.split.join(' / ') : '전원';
+    const own = x.shares ? Object.entries(x.shares).map(([n, a]) => `${n} ${a}`).join(' / ') : '';
+    return [x.date, x.time || '', x.cat || '', x.memo || '', x.cur, x.amount, kindLabel(x, r), rateCol, r.krw, x.payer || t.members[0], who, own, calc, x.note || ''];
   });
-  return '\ufeff' + [head, ...rows].map(r => r.map(q).join(',')).join('\r\n');
+  const ex = [...t.exchanges].sort(byOrd).map(e => { const l = L.lots[e.id]; return [e.date, e.time || '', e.cur, e.amount, l.krwPaid, rateText(l.rate, l.per, e.cur), l.remaining, e.wallet || '', e.memo || '']; });
+  const mem = Object.entries(L.members).map(([n, v]) => [n, v.paid, v.share, v.paid - v.share]);
+  const all = [head, ...rows,
+    [], ['[환전 내역]'], ['날짜', '시간', '통화', '환전한 외화', '낸 원화', '적용 환율', '남은 외화', '지갑', '메모'], ...ex,
+    [], ['[정산 결과]'], ['이름', '결제한 금액', '부담할 금액', '차액(+받음 −보냄)'], ...mem,
+    [], ['보내는 사람', '받는 사람', '금액'], ...L.transfers.map(x => [x.from, x.to, x.krw])];
+  return '\ufeff' + all.map(r => r.map(q).join(',')).join('\r\n');
 }
 async function saveFile(filename, data) {
   const dl = S.caps.downloads;
@@ -2773,6 +2952,9 @@ const ACT = {
   addFlight: () => sheetFlight(cur()),
   editFlight: el => sheetFlight(cur(), el.dataset.id),
   toggleBooks: () => { const id = cur().id; BOOK_OPEN.has(id) ? BOOK_OPEN.delete(id) : BOOK_OPEN.add(id); render(); },
+  settleText: () => sheetSettle(cur(), 'text'),
+  settleImg: () => sheetSettle(cur(), 'img'),
+  bank: () => sheetBank(),
   addStay: () => sheetStay(cur()),
   editStay: el => sheetStay(cur(), el.dataset.id),
   addNote: () => sheetNote(cur(), null, false),
@@ -3096,7 +3278,7 @@ ACT.sync = () => {
   if (Store.mode !== 'db') { openSheet(sheetHead('동기화') + '<p class="hint" style="margin-top:8px">아직 클라우드가 연결되지 않았어요. README의 Firebase 설정을 마치면 로그인과 공유가 켜져요.</p>'); return; }
   openSheet(sheetHead('내 계정') + `<p style="margin-top:8px"><b>${esc(S.user.nick || '이름 없음')}</b> 별명으로 로그인돼 있어요.</p>
     <p class="hint" style="margin-top:6px">다른 폰이나 PC에서도 같은 별명과 PIN으로 로그인하면 내 여행이 그대로 열려요.</p>
-    <div class="sheet-sec"><button class="btn" data-act="logout">로그아웃</button></div>`);
+    <div class="sheet-sec"><button class="btn" data-act="bank">내 입금 계좌</button><button class="btn" data-act="logout">로그아웃</button></div>`);
 };
 ACT.logout = async () => { closeSheet(); S.tripId = null; savePrefs(); await window.TN.signOut(); };
 Store.init();
