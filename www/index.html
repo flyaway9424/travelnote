@@ -12,7 +12,7 @@
 <script src="cloud.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>
 :root{
   --paper:#EDF1EC; --surface:#FFFFFF; --surface-2:#E2E9E3; --ink:#1B2F2A; --ink-2:#55685F; --line:#CAD5CD;
@@ -733,7 +733,7 @@ body{-webkit-font-smoothing:antialiased}
 .fld .sp-amt input:focus{outline:none;border-bottom-color:var(--green)}
 .fld .sp-amt input:disabled{opacity:.35}
 .sp-amt em{font-style:normal;color:var(--ink-2);font-size:.8rem}
-.settle-share{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.settle-share{display:flex;margin-top:12px}.settle-share .btn{flex:1}
 .settle-img{display:block;width:100%;border-radius:12px;border:1px solid var(--line);margin-top:8px}
 .settle-btns{display:flex;gap:8px;margin-top:12px}
 .settle-btns .btn{flex:1}
@@ -1428,6 +1428,18 @@ async function copyText(text) {
     document.body.append(ta); ta.select(); ta.setSelectionRange(0, text.length); const ok = document.execCommand('copy'); ta.remove(); return ok;
   } catch { return false; }
 }
+// 보내기: 휴대폰 공유창(카톡·문자 등)을 열고, 공유창이 없거나 막힌 곳에서는 글은 복사·파일은 내려받기
+async function sendOut({ text, file }) {
+  const data = file ? { files: [file] } : { text };
+  if (navigator.share && (!file || (navigator.canShare && navigator.canShare(data)))) {
+    try { await navigator.share(data); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+  }
+  if (file) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; document.body.append(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); return;
+  }
+  toast(await copyText(text) ? '복사했어요. 카톡에 붙여넣어 보내세요.' : '글을 길게 눌러 복사해 주세요.');
+}
 async function settleBlob(t, L, o = {}) {
   const bank = o.bank || '', note = o.note || '', tf = o.tf || L.transfers;
   const FONT = '"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif', K = 2, W = 720, P = 40;
@@ -1477,8 +1489,9 @@ async function sheetSettle(t, mode) {
   });
   const mkImg = async () => {
     const blob = await settleBlob(t, L, now()); if (!blob) return false;
-    if (url) URL.revokeObjectURL(url);
-    url = URL.createObjectURL(blob); file = new File([blob], name, { type: 'image/png' }); return true;
+    file = new File([blob], name, { type: 'image/png' });
+    url = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.onerror = () => r(null); fr.readAsDataURL(blob); });
+    return !!url;
   };
   openSheet(sheetHead('정산표') + `<div class="smw">
     <div class="sm-seg"><button type="button" data-smode="img" class="${mode === 'img' ? 'on' : ''}">이미지</button><button type="button" data-smode="text" class="${mode === 'text' ? 'on' : ''}">글</button></div>
@@ -1495,20 +1508,16 @@ async function sheetSettle(t, mode) {
       const my = ++seq;
       if (d.mode === 'text') {
         const o = now(), text = settleTextOf(t, L, o.bank, o.tf, o.note);
-        prev.innerHTML = `<textarea readonly class="settle-ta" data-ta>${esc(text)}</textarea><p class="hint" style="margin-top:8px">복사가 안 되면 글을 길게 눌러 전체 선택 후 복사하세요.</p>`;
-        act.innerHTML = `<button type="button" class="btn primary" data-scopy>복사하기</button>${navigator.share ? '<button type="button" class="btn" data-sshare>공유하기</button>' : ''}`;
-        const ta = $('[data-ta]', prev);
-        $('[data-scopy]', act).onclick = async () => { if (await copyText(text)) toast('복사했어요. 카톡에 붙여넣어 보내세요.'); else { ta.focus(); ta.select(); toast('길게 눌러 복사해 주세요.'); } };
-        const sh = $('[data-sshare]', act);
-        if (sh) sh.onclick = async () => { try { await navigator.share({ text }); } catch (e) { if (!(e && e.name === 'AbortError')) toast('공유하지 못했어요. 복사를 이용해 주세요.'); } };
+        prev.innerHTML = `<textarea readonly class="settle-ta">${esc(text)}</textarea>`;
+        act.innerHTML = `<button type="button" class="btn primary" data-send>${navigator.share ? '보내기' : '복사하기'}</button>`;
+        $('[data-send]', act).onclick = () => sendOut({ text });
       } else {
         if (!await mkImg()) { toast('이미지를 만들지 못했어요'); return; }
         if (my !== seq) return;   // 더 새로운 요청이 있으면 이 결과는 버림
-        const can = !!(navigator.canShare && navigator.canShare({ files: [file] }));
-        prev.innerHTML = `<img class="settle-img" src="${url}" alt="${esc(t.name)} 정산표"><p class="hint" style="margin-top:8px">${can ? '공유하기로 카톡 등에 바로 보낼 수 있어요.' : '저장한 이미지를 카톡에 첨부해 보내세요. 저장이 안 되면 이미지를 길게 누르거나 화면을 캡처하세요.'}</p>`;
-        act.innerHTML = `${can ? '<button type="button" class="btn primary" data-simg-share>공유하기</button>' : ''}<a class="btn${can ? '' : ' primary'}" href="${url}" download="${esc(name)}">이미지 저장</a>`;
-        const b = $('[data-simg-share]', act);
-        if (b) b.onclick = async () => { try { await navigator.share({ files: [file], title: name }); } catch (e) { if (!(e && e.name === 'AbortError')) toast('공유하지 못했어요. 이미지 저장을 이용해 주세요.'); } };
+        const can = !!(navigator.share && navigator.canShare && navigator.canShare({ files: [file] }));
+        prev.innerHTML = `<img class="settle-img" src="${url}" alt="${esc(t.name)} 정산표">`;
+        act.innerHTML = `<button type="button" class="btn primary" data-send>${can ? '보내기' : '이미지 저장'}</button>`;
+        $('[data-send]', act).onclick = () => sendOut({ file });
       }
     };
     const later = () => { clearTimeout(timer); timer = setTimeout(draw, d.mode === 'img' ? 300 : 0); };
@@ -1524,7 +1533,7 @@ async function sheetSettle(t, mode) {
     w.onclick = e => { const b = e.target.closest('[data-smode]'); if (!b) return; d.mode = b.dataset.smode; $$('[data-smode]', w).forEach(x => x.classList.toggle('on', x === b)); draw(); };
     draw();
   },
-  () => { clearTimeout(timer); if (url) URL.revokeObjectURL(url); });
+  () => clearTimeout(timer));
 }
 function settleHtml(t, L) {
   if (t.members.length < 2) return `<p class="empty">함께 가는 사람을 <button class="link" data-act="tripSettings">여행 설정</button>에서 추가하면, 누가 누구에게 얼마를 보내면 되는지 계산해 드려요.</p>`;
@@ -1533,7 +1542,7 @@ function settleHtml(t, L) {
   return `<div class="tbl-wrap stat"><table><thead><tr><th>이름</th><th>결제한 금액</th><th>부담할 금액</th><th>차액</th></tr></thead><tbody>${rows}</tbody></table></div>
     <section class="stat"><h3>이렇게 보내면 정산 끝</h3>${L.transfers.length ? `<ul class="transfers">${L.transfers.map(x => `<li><span>${esc(x.from)} → ${esc(x.to)}</span><b>${won(x.krw)}</b></li>`).join('')}</ul>` : '<p class="muted">보낼 돈이 없어요.</p>'}
     <p class="hint" style="margin-top:8px">원화로 환산한 금액 기준이에요. 지출마다 같이 쓴 사람을 고르면 그 사람들끼리만 나눠요.</p>
-    <div class="settle-share"><button type="button" class="btn small" data-act="settleText">정산표 복사·공유</button><button type="button" class="btn small" data-act="settleImg">정산표 이미지</button><button type="button" class="btn small" data-act="bank">내 입금 계좌</button></div></section>`;
+    <div class="settle-share"><button type="button" class="btn primary" data-act="settle">정산표 보내기</button></div></section>`;
 }
 
 // ----- 일정 -----
@@ -1999,6 +2008,21 @@ let onSheetClose = null;
   const app = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
   if (!app) { if (!capBack.n) { capBack.n = 1; addEventListener('load', capBack); } return; }
   app.addListener('backButton', e => { if (e && e.canGoBack) history.back(); else app.exitApp(); });
+})();
+// 안드로이드 앱(APK) 화면에는 공유 기능(navigator.share)이 없어서, 앱에 든 공유 부품(@capacitor/share·filesystem)으로 채운다
+// 부품이 없는 예전 APK와 웹에서는 아무것도 하지 않는다
+(function capShare() {
+  const P = window.Capacitor && window.Capacitor.Plugins;
+  if (!P) { if (!capShare.n) { capShare.n = 1; addEventListener('load', capShare); } return; }
+  if (navigator.share || !P.Share || !P.Filesystem) return;
+  const b64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = () => no(r.error); r.readAsDataURL(f); });
+  navigator.canShare = () => true;
+  navigator.share = async (d = {}) => {
+    const files = [];   // 파일은 앱 임시 폴더에 저장한 뒤 그 경로로 넘긴다
+    for (const f of d.files || []) files.push((await P.Filesystem.writeFile({ path: String(f.name || 'share').replace(/[\\/:*?"<>|]/g, '_'), data: await b64(f), directory: 'CACHE' })).uri);
+    try { await P.Share.share({ title: d.title, text: d.text, url: d.url, files: files.length ? files : undefined }); }
+    catch (e) { if (/cancel/i.test(e && e.message)) throw new DOMException('공유 취소', 'AbortError'); throw e; }   // 공유창을 그냥 닫으면 웹과 똑같이 조용히 끝냄
+  };
 })();
 // 기록 깊이 = 지금 열려 있는 층 수 (여행 1 + 입력창 1 + 크게 보기 1). 개수를 더하고 빼지 않고 매번 세어서 맞춘다
 const Nav = { skip: 0, busy: false, timer: 0 };
@@ -2832,11 +2856,7 @@ function bindShare(t, root) {
     } catch (e) { toast(shareMsg(e)); sh.disabled = false; sh.textContent = '공유 코드 만들기'; }
   };
   const inv = $('[data-invite]', root);
-  if (inv) inv.onclick = async () => {
-    const text = `여행노트에서 '${t.name}' 같이 기록해요!\n1. ${location.origin + location.pathname} 에서 가입·로그인\n2. 홈 화면 '코드로 참여'에 ${fmtCode(t.shareCode)} 입력`;
-    if (navigator.share) { try { await navigator.share({ text }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
-    navigator.clipboard.writeText(text).then(() => toast('초대 문구를 복사했어요. 카톡에 붙여넣어 보내세요.'), () => toast('복사하지 못했어요'));
-  };
+  if (inv) inv.onclick = () => sendOut({ text: `여행노트에서 '${t.name}' 같이 기록해요!\n1. ${location.origin + location.pathname} 에서 가입·로그인\n2. 홈 화면 '코드로 참여'에 ${fmtCode(t.shareCode)} 입력` });
   const un = $('[data-unshare]', root);
   if (un) un.onclick = () => armConfirm(un, '한 번 더 누르면 코드 끄기', async () => {
     try { await window.TN.unshare(t); sync('shareCode', ''); reopen(); toast('코드를 껐어요. 이미 함께하는 사람은 그대로예요.'); } catch (e) { toast(shareMsg(e)); }
@@ -2952,8 +2972,7 @@ const ACT = {
   addFlight: () => sheetFlight(cur()),
   editFlight: el => sheetFlight(cur(), el.dataset.id),
   toggleBooks: () => { const id = cur().id; BOOK_OPEN.has(id) ? BOOK_OPEN.delete(id) : BOOK_OPEN.add(id); render(); },
-  settleText: () => sheetSettle(cur(), 'text'),
-  settleImg: () => sheetSettle(cur(), 'img'),
+  settle: () => sheetSettle(cur(), 'img'),
   bank: () => sheetBank(),
   addStay: () => sheetStay(cur()),
   editStay: el => sheetStay(cur(), el.dataset.id),
@@ -3072,12 +3091,7 @@ async function openPdf(data, name) {
   const dlg = openOverlay(`<div class="vw-top"><span class="vw-name">${esc(name)}</span><span class="vw-acts"><button type="button" class="vw-dl" aria-label="내려받기">저장</button><button type="button" class="vw-x" aria-label="닫기">✕</button></span></div>
     <div class="pdf-pages"><p class="pdf-msg">PDF를 여는 중…</p></div>`, { cls: 'pdf', label: name });
   const blob = () => { const b = atob(data.split(',')[1]); const u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; };
-  $('.vw-dl', dlg).onclick = async () => {
-    const file = new File([blob()], /\.pdf$/i.test(name) ? name : name + '.pdf', { type: 'application/pdf' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file] }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
-    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; document.body.append(a); a.click();
-    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
-  };
+  $('.vw-dl', dlg).onclick = () => sendOut({ file: new File([blob()], /\.pdf$/i.test(name) ? name : name + '.pdf', { type: 'application/pdf' }) });
   const box = $('.pdf-pages', dlg);
   try {
     const lib = await loadPdfJs(), doc = await lib.getDocument({ data: blob() }).promise;
