@@ -12,6 +12,10 @@ jobs:
         with: { distribution: temurin, java-version: 17 }
       - run: npm install && npm run vendor
       - run: npx cap add android && npx @capacitor/assets generate --android && npx cap sync android
+      # 나중에 웹 코드에서 '내 위치'를 쓸 수 있게 위치 권한을 미리 넣어 둔다 (쓸 때만 허용 창이 뜸)
+      - run: |
+          sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#&\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />#' android/app/src/main/AndroidManifest.xml
+          grep -q ACCESS_FINE_LOCATION android/app/src/main/AndroidManifest.xml
       - run: cd android && chmod +x gradlew && ./gradlew assembleDebug && mv app/build/outputs/apk/debug/app-debug.apk ../TripNote.apk
       - uses: actions/upload-artifact@v4
         with: { name: TripNote-apk, path: TripNote.apk }
