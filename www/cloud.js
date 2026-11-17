@@ -35,7 +35,7 @@
   TN.signOut = async () => { flushAll(); await new Promise(r => setTimeout(r, 800)); return auth.signOut(); };
 
   // ----- 여행 저장: 목록은 항목 id별로 저장해서 여러 사람이 동시에 써도 서로 덮어쓰지 않게 -----
-  const LISTS = ['exchanges', 'expenses', 'plans', 'notes', 'checklist', 'diary', 'flights', 'stays', 'packs'];   // packs = 공용 준비물을 누가 챙겼는지
+  const LISTS = ['exchanges', 'expenses', 'plans', 'notes', 'checklist', 'diary', 'flights', 'stays', 'packs', 'settles'];   // packs = 공용 준비물을 누가 챙겼는지
   // 서버 칸: members = 들어올 수 있는 계정 아이디 목록(앱에서는 t.uids), people = 정산용 '함께 가는 사람'(앱에서는 t.members)
   const APP_SKIP = ['id', 'owner', 'uids', 'names', 'shareCode', 'joinKey'];   // 앱이 저장하지 않는 칸
   const SERVER = ['members', 'owner', 'names', 'shareCode', 'joinKey'];        // 바뀐 칸 계산에서 빼는 서버 칸

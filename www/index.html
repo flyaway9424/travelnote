@@ -194,6 +194,12 @@ th{font-size:.8rem;color:var(--ink-2);font-weight:600}
 .plus{color:var(--green);font-weight:700}.minus{color:var(--warn);font-weight:700}
 .transfers{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:6px}
 .transfers li{padding:12px;border-radius:10px;background:var(--surface);border:1px solid var(--line);display:flex;justify-content:space-between;gap:10px}
+.transfers .tap{padding:0}
+.transfers .tap button{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;min-height:48px;padding:12px;border:0;border-radius:10px;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.transfers .tap button:active{background:var(--surface-2)}.go{color:var(--ink-2);font-weight:400;margin-left:8px}
+.st-sub{display:flex;justify-content:space-between;align-items:center;gap:8px}.st-more{border:0;background:none;padding:6px 0;color:var(--green);font:inherit;font-weight:600;white-space:nowrap}
+.settle-st{margin-top:4px}.settle-st p{font-size:.85rem;color:var(--ink-2);margin-top:4px}.settle-st .big{font-size:1rem;color:var(--ink);font-weight:700}
+.st-ok{display:inline-block;padding:2px 10px;border-radius:999px;background:var(--green-soft);color:var(--green);font-weight:700}.settle-io{font-weight:400;font-size:.78rem;color:var(--ink-2)}
 
 /* plan */
 .info-strip{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;align-items:center;padding:14px;border-radius:14px;background:var(--surface);border:1px solid var(--line);margin:4px 0 8px}
@@ -826,7 +832,7 @@ function computeLedger(trip) {
     lots[e.id] = L;
   }
 
-  const out = { exp: {}, lots, pools: [], total: 0, byKind: { cash: 0, live: 0, home: 0 }, byCat: {}, byCur: {}, byDay: {}, members: {}, transfers: [], shortCount: 0 };
+  const out = { exp: {}, lots, pools: [], total: 0, byKind: { cash: 0, live: 0, home: 0 }, byCat: {}, byCur: {}, byDay: {}, members: {}, transfers: [], shortCount: 0, settled: 0 };
   for (const m of members) out.members[m] = { paid: 0, share: 0 };
 
   for (const x of [...(trip.expenses || [])].sort(byOrd)) {
@@ -900,7 +906,13 @@ function computeLedger(trip) {
     out.pools.push(p);
   }
 
-  const bal = Object.entries(out.members).map(([name, v]) => ({ name, net: v.paid - v.share }));
+  // 입금 기록: 보낸 사람은 그만큼 덜 보내고, 받은 사람은 그만큼 덜 받는다 (지출 합계에는 안 들어감)
+  for (const s of trip.settles || []) {
+    const k = Math.round(+s.krw || 0); if (!(k > 0) || !s.from || !s.to || s.from === s.to) continue;
+    const a = out.members[s.from] || (out.members[s.from] = { paid: 0, share: 0 }), b = out.members[s.to] || (out.members[s.to] = { paid: 0, share: 0 });
+    a.sent = (a.sent || 0) + k; b.recv = (b.recv || 0) + k; out.settled += k;
+  }
+  const bal = Object.entries(out.members).map(([name, v]) => ({ name, net: netOf(v) }));
   const cred = bal.filter(b => b.net > 0).sort((a, b) => b.net - a.net);
   const debt = bal.filter(b => b.net < 0).sort((a, b) => a.net - b.net);
   let i = 0, j = 0;
@@ -913,6 +925,9 @@ function computeLedger(trip) {
   }
   return out;
 }
+
+// 남은 차액: + 받을 돈, − 보낼 돈 (입금 기록 반영)
+const netOf = v => v.paid - v.share + (v.sent || 0) - (v.recv || 0);
 
 // ===== 기본 값 =====
 const CATS = ['식비', '카페', '교통', '숙박', '쇼핑', '관광', '기타'];
@@ -1099,7 +1114,7 @@ function newTrip(o = {}) {
     createdAt: Date.now(), updatedAt: Date.now() };
 }
 function normTrip(t) {
-  for (const k of ['curs', 'members', 'exchanges', 'expenses', 'plans', 'notes', 'checklist', 'diary', 'flights', 'stays', 'packs']) if (!Array.isArray(t[k])) t[k] = [];
+  for (const k of ['curs', 'members', 'exchanges', 'expenses', 'plans', 'notes', 'checklist', 'diary', 'flights', 'stays', 'packs', 'settles']) if (!Array.isArray(t[k])) t[k] = [];
   if (!t.members.length) t.members = ['나'];
   t.home = t.home || 'KRW'; t.lastRate = t.lastRate || {};
   return t;
@@ -1258,7 +1273,7 @@ function tabMoney(t, L) {
       <div class="sum-acts"><button class="btn primary" data-act="addExp">지출 기록</button>${fx ? '<button class="btn" data-act="addEx">환전</button>' : ''}</div></div>` +
     summaryHtml(t, L) +
     (fx ? walletHtml(t, L) : '') +
-    `<div class="seg sub" role="tablist">${[['list', '내역'], ['stats', '통계'], ['settle', '정산']].map(([k, l]) =>
+    `<div class="seg sub" role="tablist">${[['list', '내역'], ['stats', '통계'], ['settle', L.settled && !L.transfers.length ? '정산 ✓' : '정산']].map(([k, l]) =>
       `<button role="tab" aria-selected="${v === k}" data-act="mview" data-v="${k}">${l}</button>`).join('')}</div>` +
     (v === 'stats' ? statsHtml(t, L) : v === 'settle' ? settleHtml(t, L) : moneyBar(t) + listHtml(t, L));
 }
@@ -1413,9 +1428,9 @@ const settleRange = t => t.start ? t.start.replace(/-/g, '.') + (t.end && t.end 
 const bankWho = () => S.user && S.user.nick ? ` (${S.user.nick})` : '';
 function settleTextOf(t, L, bank, tf = L.transfers, note = '') {
   const out = [`[${t.name} 정산]`, ...(settleRange(t) ? [settleRange(t)] : []), '원화로 환산한 금액 기준이에요.', '', '■ 사람별'];
-  for (const [n, v] of Object.entries(L.members)) { const net = v.paid - v.share; out.push(`${n}: 결제 ${won(v.paid)} / 부담 ${won(v.share)} → ${net > 0 ? '받을 돈 ' + won(net) : net < 0 ? '보낼 돈 ' + won(-net) : '정산 없음'}`); }
-  out.push('', '■ 이렇게 보내면 정산 끝');
-  if (tf.length) tf.forEach(x => out.push(`${x.from} → ${x.to}  ${won(x.krw)}`)); else out.push('보낼 돈이 없어요.');
+  for (const [n, v] of Object.entries(L.members)) { const net = netOf(v); out.push(`${n}: 결제 ${won(v.paid)} / 부담 ${won(v.share)}${v.sent ? ' / 보냄 ' + won(v.sent) : ''}${v.recv ? ' / 받음 ' + won(v.recv) : ''} → ${net > 0 ? '받을 돈 ' + won(net) : net < 0 ? '보낼 돈 ' + won(-net) : '정산 없음'}`); }
+  out.push('', L.settled ? `■ 남은 정산 (입금 ${won(L.settled)} 반영)` : '■ 이렇게 보내면 정산 끝');
+  if (tf.length) tf.forEach(x => out.push(`${x.from} → ${x.to}  ${won(x.krw)}`)); else out.push(L.settled ? '정산이 모두 끝났어요.' : '보낼 돈이 없어요.');
   if (bank) out.push('', `■ 입금 계좌${bankWho()}`, bank);
   if (note) out.push('', note);
   return out.join('\n');
@@ -1459,12 +1474,12 @@ async function settleBlob(t, L, o = {}) {
   const box = (py, h) => { x.fillStyle = col.card; x.beginPath(); if (x.roundRect) x.roundRect(P, py, W - P * 2, h, 12); else x.rect(P, py, W - P * 2, h); x.fill(); };
   x.fillStyle = col.bg; x.fillRect(0, 0, W, H);
   txt(`${t.name} 정산`, P, 78, 36, 700, col.ink, 'left', W - P * 2);
-  txt(`${settleRange(t)}${settleRange(t) ? ' · ' : ''}원화 기준`, P, 116, 22, 400, col.mute);
+  txt(`${settleRange(t)}${settleRange(t) ? ' · ' : ''}원화 기준${L.settled ? ` · 입금 ${won(L.settled)} 반영` : ''}`, P, 116, 22, 400, col.mute);
   let y = 150; x.fillStyle = col.ink; x.fillRect(P, y, W - P * 2, 2);
   y += 38; txt('이름', P, y, 20, 700, col.mute); txt('결제', 300, y, 20, 700, col.mute, 'right'); txt('부담', 470, y, 20, 700, col.mute, 'right'); txt('받을·보낼 돈', W - P, y, 20, 700, col.mute, 'right');
   y += 18;
   for (const [n, v] of rows) {
-    const net = v.paid - v.share;
+    const net = netOf(v);
     x.fillStyle = col.line; x.fillRect(P, y, W - P * 2, 1); y += 38;
     txt(n, P, y, 24, 600, col.ink, 'left', 120); txt(won(v.paid), 300, y, 22, 400, col.ink, 'right'); txt(won(v.share), 470, y, 22, 400, col.ink, 'right');
     txt(net > 0 ? `받을 돈 ${won(net)}` : net < 0 ? `보낼 돈 ${won(-net)}` : '없음', W - P, y, 22, 700, net > 0 ? col.green : net < 0 ? col.terra : col.mute, 'right'); y += 22;
@@ -1472,7 +1487,7 @@ async function settleBlob(t, L, o = {}) {
   x.fillStyle = col.line; x.fillRect(P, y, W - P * 2, 1); y += 40;
   txt('이렇게 보내면 정산 끝', P, y + 16, 26, 700); y += 56;
   if (tf.length) for (const f of tf) { box(y, 58); txt(`${f.from} → ${f.to}`, P + 20, y + 37, 26, 600, col.ink, 'left', 380); txt(won(f.krw), W - P - 20, y + 38, 28, 700, col.green, 'right'); y += 70; }
-  else { box(y, 58); txt('보낼 돈이 없어요.', P + 20, y + 37, 24, 400, col.mute); y += 70; }
+  else { box(y, 58); txt(L.settled ? '정산이 모두 끝났어요.' : '보낼 돈이 없어요.', P + 20, y + 37, 24, 400, col.mute); y += 70; }
   if (bank) { txt(`입금 계좌${bankWho()}`, P, y + 14, 20, 700, col.mute); box(y + 28, 58); txt(bank, P + 20, y + 65, 26, 600, col.ink, 'left', W - P * 2 - 40); y += 98; }
   if (noteLines.length) { y += 16; noteLines.forEach((ln, i) => txt(ln, P, y + 24 + i * 34, 24, 400, col.ink)); y += noteLines.length * 34; }
   txt('TripNote', P, H - 28, 18, 400, col.mute); txt('원화로 환산한 금액 기준이에요', W - P, H - 28, 18, 400, col.mute, 'right');
@@ -1537,12 +1552,53 @@ async function sheetSettle(t, mode) {
 }
 function settleHtml(t, L) {
   if (t.members.length < 2) return `<p class="empty">함께 가는 사람을 <button class="link" data-act="tripSettings">여행 설정</button>에서 추가하면, 누가 누구에게 얼마를 보내면 되는지 계산해 드려요.</p>`;
-  const rows = Object.entries(L.members).map(([n, v]) => { const net = v.paid - v.share;
-    return `<tr><td>${esc(n)}</td><td>${won(v.paid)}</td><td>${won(v.share)}</td><td class="${net > 0 ? 'plus' : net < 0 ? 'minus' : ''}">${net > 0 ? '받을 돈 ' + won(net) : net < 0 ? '보낼 돈 ' + won(-net) : '없음'}</td></tr>`; }).join('');
-  return `<div class="tbl-wrap stat"><table><thead><tr><th>이름</th><th>결제한 금액</th><th>부담할 금액</th><th>차액</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <section class="stat"><h3>이렇게 보내면 정산 끝</h3>${L.transfers.length ? `<ul class="transfers">${L.transfers.map(x => `<li><span>${esc(x.from)} → ${esc(x.to)}</span><b>${won(x.krw)}</b></li>`).join('')}</ul>` : '<p class="muted">보낼 돈이 없어요.</p>'}
-    <p class="hint" style="margin-top:8px">원화로 환산한 금액 기준이에요. 지출마다 같이 쓴 사람을 고르면 그 사람들끼리만 나눠요.</p>
+  const rows = Object.entries(L.members).map(([n, v]) => { const net = netOf(v), io = (v.sent ? '보냄 ' + won(v.sent) : '') + (v.sent && v.recv ? ' · ' : '') + (v.recv ? '받음 ' + won(v.recv) : '');
+    return `<tr><td>${esc(n)}</td><td>${won(v.paid)}</td><td>${won(v.share)}</td><td class="${net > 0 ? 'plus' : net < 0 ? 'minus' : ''}">${net > 0 ? '받을 돈 ' + won(net) : net < 0 ? '보낼 돈 ' + won(-net) : io ? '완료 ✓' : '없음'}${io ? `<br><small class="settle-io">${io}</small>` : ''}</td></tr>`; }).join('');
+  // 입금 기록이 하나라도 있으면 진행 상태를 보여 준다 (남은 돈 0 = 정산 완료, 지출이 더 생기면 다시 '정산 중')
+  const left = L.transfers.reduce((s, x) => s + x.krw, 0), all = L.settled + left;
+  // 입금 내역은 접어 두고 '입금 내역 ›'을 눌러야 열린다
+  const more = '<button type="button" class="st-more" data-act="payList">입금 내역 ›</button>';
+  const st = !L.settled ? '' : left ? `<section class="stat settle-st"><p class="big">정산 중 · 남은 돈 ${won(left)}</p><div class="bar"><i style="width:${L.settled / all * 100}%"></i></div><p class="st-sub"><span>입금 ${won(L.settled)} / 전체 ${won(all)}</span>${more}</p></section>`
+    : `<section class="stat settle-st"><p class="big"><span class="st-ok">✓ 정산 완료</span></p><p class="st-sub"><span>입금 ${won(L.settled)}</span>${more}</p></section>`;
+  return `${st}<div class="tbl-wrap stat"><table><thead><tr><th>이름</th><th>결제한 금액</th><th>부담할 금액</th><th>차액</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <section class="stat"><h3>${L.settled && left ? '남은 정산' : '이렇게 보내면 정산 끝'}</h3>${L.transfers.length ? `<ul class="transfers">${L.transfers.map((x, i) => `<li class="tap"><button type="button" data-act="pay" data-i="${i}" aria-label="${esc(x.from)} → ${esc(x.to)} ${won(x.krw)}, 입금 기록하기"><span>${esc(x.from)} → ${esc(x.to)}</span><span><b>${won(x.krw)}</b><span class="go" aria-hidden="true">›</span></span></button></li>`).join('')}</ul>` : `<p class="muted">${L.settled ? '정산이 모두 끝났어요. 지출이 더 생기면 남은 돈이 여기 다시 보여요.' : '보낼 돈이 없어요.'}</p>`}
+    <p class="hint" style="margin-top:8px">원화로 환산한 금액 기준이에요. 지출마다 같이 쓴 사람을 고르면 그 사람들끼리만 나눠요.${L.transfers.length ? ' 돈을 받으면 줄을 눌러 기록하세요.' : ''}</p>
     <div class="settle-share"><button type="button" class="btn primary" data-act="settle">정산표 보내기</button></div></section>`;
+}
+
+// 입금 기록 창: 새로 적기(남은 금액이 미리 들어감) / 고치기·삭제
+function sheetPay(t, id, x) {
+  const old = id ? t.settles.find(s => s.id === id) : null;
+  if (!old && !x) return;
+  const d = old ? clone(old) : { id: uid('s_'), date: today(), from: x.from, to: x.to, krw: x.krw, ts: Date.now() };
+  const before = old ? 0 : t.settles.filter(s => s.from === d.from && s.to === d.to).reduce((a, s) => a + (+s.krw || 0), 0);
+  openSheet(sheetHead(old ? '입금 기록 수정' : '입금 기록') +
+    `<p class="hint" style="margin-top:8px"><b>${esc(d.from)} → ${esc(d.to)}</b>${old ? '' : ` · 남은 돈 ${won(x.krw)}${before ? ` (이미 받은 돈 ${won(before)})` : ''}`}</p>
+    <div class="fld"><label for="p-amt">입금액</label><div class="amt-in"><input id="p-amt" inputmode="numeric" autocomplete="off" value="${esc(gnum(d.krw))}"><span>원</span></div>
+      <p class="hint">일부만 받았으면 받은 금액으로 고쳐 주세요. 나머지는 남은 돈으로 계속 보여요.</p></div>
+    <div class="fld"><label for="p-date">입금일</label><input type="date" id="p-date" value="${esc(d.date)}"></div>
+    <div class="sheet-foot">${old ? '<button class="btn danger" data-del>삭제</button>' : ''}<button class="btn primary" data-save>${old ? '수정 저장' : '기록하기'}</button></div>`,
+  root => {
+    const amt = $('#p-amt', root);
+    $('[data-save]', root).onclick = () => {
+      const k = Math.round(parseNum(amt.value));
+      if (!(k > 0)) { toast('입금액을 입력해 주세요.'); amt.focus(); return; }
+      const rec = { ...d, krw: k, date: $('#p-date', root).value || today() };
+      const i = t.settles.findIndex(s => s.id === rec.id);
+      if (i >= 0) t.settles[i] = rec; else t.settles.push(rec);
+      Store.save(t); closeSheet(); render();
+      toast(computeLedger(t).transfers.length ? (old ? '고쳤어요' : '기록했어요') : '정산이 모두 끝났어요 🎉');
+    };
+    const del = $('[data-del]', root);
+    if (del) del.onclick = () => armConfirm(del, '한 번 더 누르면 삭제', () => { t.settles = t.settles.filter(s => s.id !== d.id); Store.save(t); closeSheet(); render(); toast('삭제했어요'); });
+  });
+}
+// 입금 내역 창: 최근 것부터, 누르면 고치기·삭제
+function sheetPayList(t) {
+  const list = [...t.settles].sort(byOrd).reverse();
+  if (!list.length) return;
+  openSheet(sheetHead('입금 내역') + `<ul class="transfers">${list.map(s => `<li class="tap"><button type="button" data-act="payEdit" data-id="${esc(s.id)}"><span>${esc(fmtShort(s.date))} · ${esc(s.from)} → ${esc(s.to)}</span><span><b>${won(s.krw)}</b><span class="go" aria-hidden="true">›</span></span></button></li>`).join('')}</ul>
+    <p class="hint" style="margin-top:8px">누르면 고치거나 지울 수 있어요.</p>`);
 }
 
 // ----- 일정 -----
@@ -2825,6 +2881,7 @@ const fmtCode = c => c ? c.slice(0, 3) + '-' + c.slice(3) : '';
 function renameMember(t, a, b) {
   t.members = [...new Set(t.members.map(m => m === a ? b : m))];
   for (const x of t.expenses) { if (x.payer === a) x.payer = b; if (Array.isArray(x.split)) x.split = [...new Set(x.split.map(m => m === a ? b : m))]; if (x.shares && a in x.shares) { x.shares[b] = x.shares[a]; delete x.shares[a]; } }
+  for (const s of t.settles || []) { if (s.from === a) s.from = b; if (s.to === a) s.to = b; }
 }
 function shareMsg(e) {
   const c = (e && e.code) || '';
@@ -2910,11 +2967,13 @@ function csvOf(t) {
     return [x.date, x.time || '', x.cat || '', x.memo || '', x.cur, x.amount, kindLabel(x, r), rateCol, r.krw, x.payer || t.members[0], who, own, calc, x.note || ''];
   });
   const ex = [...t.exchanges].sort(byOrd).map(e => { const l = L.lots[e.id]; return [e.date, e.time || '', e.cur, e.amount, l.krwPaid, rateText(l.rate, l.per, e.cur), l.remaining, e.wallet || '', e.memo || '']; });
-  const mem = Object.entries(L.members).map(([n, v]) => [n, v.paid, v.share, v.paid - v.share]);
+  const mem = Object.entries(L.members).map(([n, v]) => [n, v.paid, v.share, netOf(v)]);
+  const pays = [...t.settles].sort(byOrd).map(s => [s.date, s.from, s.to, s.krw]);
   const all = [head, ...rows,
     [], ['[환전 내역]'], ['날짜', '시간', '통화', '환전한 외화', '낸 원화', '적용 환율', '남은 외화', '지갑', '메모'], ...ex,
-    [], ['[정산 결과]'], ['이름', '결제한 금액', '부담할 금액', '차액(+받음 −보냄)'], ...mem,
-    [], ['보내는 사람', '받는 사람', '금액'], ...L.transfers.map(x => [x.from, x.to, x.krw])];
+    [], ['[정산 결과]'], ['이름', '결제한 금액', '부담할 금액', '남은 차액(+받음 −보냄)'], ...mem,
+    [], ['보내는 사람', '받는 사람', '남은 금액'], ...L.transfers.map(x => [x.from, x.to, x.krw]),
+    ...(pays.length ? [[], ['[입금 기록]'], ['입금일', '보낸 사람', '받은 사람', '금액'], ...pays] : [])];
   return '\ufeff' + all.map(r => r.map(q).join(',')).join('\r\n');
 }
 async function saveFile(filename, data) {
@@ -2973,6 +3032,9 @@ const ACT = {
   editFlight: el => sheetFlight(cur(), el.dataset.id),
   toggleBooks: () => { const id = cur().id; BOOK_OPEN.has(id) ? BOOK_OPEN.delete(id) : BOOK_OPEN.add(id); render(); },
   settle: () => sheetSettle(cur(), 'img'),
+  pay: el => { const t = cur(); sheetPay(t, null, computeLedger(t).transfers[+el.dataset.i]); },
+  payEdit: el => sheetPay(cur(), el.dataset.id),
+  payList: () => sheetPayList(cur()),
   bank: () => sheetBank(),
   addStay: () => sheetStay(cur()),
   editStay: el => sheetStay(cur(), el.dataset.id),
