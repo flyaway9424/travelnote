@@ -225,6 +225,31 @@ th{font-size:.8rem;color:var(--ink-2);font-weight:600}
 .note .note-title{font-size:1rem;font-weight:700}
 .note .snip{color:var(--ink-2);font-size:.88rem;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap}
 .note .note-link{font-size:.85rem;display:inline-block;margin-top:4px}
+/* 노트 탭: 노트 / 스팟 */
+.seg.sub.nv{margin:0}
+.seg.sub.nv small{margin-left:4px;color:var(--ink-2);font-weight:600}
+.add-row{display:flex;align-items:center;gap:12px;width:100%;min-height:58px;padding:0 2px;border:0;border-bottom:1px solid var(--line);background:none;font:inherit;font-size:.95rem;font-weight:600;color:var(--green);text-align:left;cursor:pointer}
+.add-row .ar-ic{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--green-soft)}
+.add-row .ar-ic .i{width:16px;height:16px;margin:0;stroke-width:2.2;vertical-align:0}
+.add-row:active{background:var(--surface-2)}
+.add-row+.empty{padding-top:18px}
+.spot{position:relative}
+.spot .note-title{display:flex;flex-wrap:wrap;align-items:center;min-height:34px;padding-right:84px}
+.sp-acts{position:absolute;top:12px;right:0;display:flex;gap:6px}
+.sp-acts>*{display:grid;place-items:center;width:34px;height:34px;padding:0;border:1px solid var(--line);border-radius:50%;background:none;color:var(--ink);text-decoration:none;cursor:pointer}
+.sp-acts>:active{background:var(--surface-2)}
+.sp-acts .i{width:18px;height:18px;margin:0;vertical-align:0}
+.sheet-foot.sp-foot{flex-wrap:wrap;row-gap:2px}
+.sheet-alt{flex:1 1 100%;width:100%;display:flex;align-items:center;justify-content:center;gap:6px;min-height:40px;border:0;background:none;font:inherit;font-size:.86rem;font-weight:600;color:var(--ink-2);cursor:pointer}
+.sheet-alt .i{width:16px;height:16px;margin:0;vertical-align:0}
+.imp-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:2px 0 4px}
+.imp-head .link{flex:none;font-size:.84rem;font-weight:700;text-decoration:none}
+.imp-list label{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;row-gap:1px;padding:8px 0}
+.imp-list label small{color:var(--ink-2);font-size:.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.imp-list .src{max-width:9.5em;align-self:center}
+.imp-list .memo{grid-column:1/-1}
+.imp-list li.dup{opacity:.5}
+.sp-on{margin-left:8px;padding:2px 8px;border-radius:999px;background:var(--green-soft);color:var(--green);font-size:.72rem;font-weight:700;vertical-align:.12em;white-space:nowrap}
 .thumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .thumb{position:relative;width:76px;height:76px;border-radius:8px;overflow:hidden;background:var(--surface-2);display:grid;place-items:center}
 .thumb img{width:100%;height:100%;object-fit:cover}
@@ -1070,7 +1095,7 @@ const Store = {
   mode: 'local',
   init() {
     const T = window.TN;
-    if (!T || !T.cloud) { this.loadLocal(); S.ready = true; render(); return; }
+    if (!T || !T.cloud) { this.loadLocal(); S.ready = true; startScreen(); render(); return; }
     this.mode = 'db'; S.caps.assets = T.assets; S.caps.downloads = T.downloads;
     T.onAuth(u => {
       S.user = u; S.trips = {};
@@ -1078,7 +1103,7 @@ const Store = {
       S.ready = false; render();
       T.watch((id, t) => { S.trips[id] = t; if (S.ready) render(); },
         id => { delete S.trips[id]; if (S.tripId === id) { S.tripId = null; savePrefs(); } if (S.ready) render(); },
-        () => { S.ready = true; render(); this.migrate(); });
+        () => { S.ready = true; startScreen(); render(); this.migrate(); });
     });
   },
   async migrate() {
@@ -1838,9 +1863,30 @@ function tabPlan(t) {
 }
 
 // ----- 노트 / 스크랩 -----
+// 목록 맨 위의 추가 줄 (노트·스팟 공용)
+const ADD_IC = svgI('<path d="M12 5v14M5 12h14"/>');
+const CAL_ADD_IC = svgI('<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M12 12.5v5.5M9.25 15.25h5.5"/>');
+const IMPORT_IC = svgI('<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/>');
+const addRow = (act, label) => `<button type="button" class="add-row" data-act="${act}"><span class="ar-ic">${ADD_IC}</span>${label}</button>`;
+// 스팟(가볼 곳): 노트(t.notes)에 spot 표시로 저장. 구글 값은 넣을 때 한 번만 받고, 목록·구글지도 열기는 호출 없음
+function spotsHtml(t) {
+  const sp = t.notes.filter(n => n.spot).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  const onPlan = s => {   // 이 스팟으로 만든 일정의 날짜
+    const on = t.plans.filter(p => p.spot === s.id); if (!on.length) return '';
+    const ds = [...new Set(on.map(p => p.date).filter(Boolean))].sort().map(fmtShort);
+    return `<small class="sp-on">${ds.length ? ds.join(', ') + ' 일정' : '일정에 있음'}</small>`;
+  };
+  return addRow('addSpot', '스팟 추가') + (sp.length ? sp.map(s => `<article class="note spot"><button class="note-main" data-act="editSpot" data-id="${s.id}"><span class="note-title">${esc(s.place || '이름 없는 장소')}${onPlan(s)}</span>${s.memo || s.addr ? `<span class="snip">${esc(s.memo || s.addr)}</span>` : ''}</button>
+      <span class="sp-acts"><a href="${esc(safeUrl(s.mapUrl) || placeLink(s))}" target="_blank" rel="noopener" aria-label="구글지도에서 보기" title="구글지도에서 보기">${IC.pin}</a><button type="button" data-act="spotToPlan" data-id="${s.id}" aria-label="일정 추가" title="일정 추가">${CAL_ADD_IC}</button></span></article>`).join('')
+    : '<p class="empty">여행지에서 가볼 만한 곳을 모아 두고, 마음에 들면 일정에 추가하세요. 구글지도에서 공유한 링크를 붙여넣거나 이름으로 찾으면 돼요.</p>');
+}
 function tabNotes(t) {
-  const list = [...t.notes].sort((a, b) => (b.updated || 0) - (a.updated || 0));
-  return `<div class="top-actions"><button class="btn primary" data-act="addNote">노트 쓰기</button><button class="btn" data-act="addLink">링크 스크랩</button></div>
+  const nv = S.nview === 'spots' ? 'spots' : 'notes', n = t.notes.filter(x => x.spot).length;
+  const sub = `<div class="seg sub nv" role="tablist">${[['notes', '노트'], ['spots', `스팟${n ? `<small>${n}</small>` : ''}`]].map(([k, l]) =>
+    `<button role="tab" aria-selected="${nv === k}" data-act="nview" data-v="${k}">${l}</button>`).join('')}</div>`;
+  if (nv === 'spots') return sub + spotsHtml(t);
+  const list = t.notes.filter(x => !x.spot).sort((a, b) => (b.updated || 0) - (a.updated || 0));
+  return sub + addRow('addNote', '노트 쓰기') + `
     ${list.length ? list.map(n => { const u = safeUrl(n.url); return `<article class="note"><button class="note-main" data-act="editNote" data-id="${n.id}">
       <span class="note-title">${esc(n.title || (u ? new URL(u).hostname : '제목 없음'))}</span>${n.body ? `<span class="snip">${esc(n.body)}</span>` : ''}</button>
       ${u ? `<a class="note-link" href="${esc(u)}" target="_blank" rel="noopener">${esc(new URL(u).hostname)} 열기</a>` : ''}
@@ -2058,6 +2104,22 @@ function cleanupAssets(saved, before, after, fresh) {
 // ===== 입력 시트 =====
 const sheet = $('#sheet');
 let onSheetClose = null;
+// ===== 첫 화면: 새로 켜거나 30분 넘게 비웠다 오면, 여행 중인 여행의 일정(오늘) · 없으면 여행 목록 =====
+// 잠깐 다녀온 경우(구글지도에서 링크 복사 등)와 입력창·사진이 열려 있을 때는 그대로 둔다
+function startScreen() {
+  const d = today(), on = t => t.start && t.start <= d && d <= (t.end && t.end >= t.start ? t.end : t.start);
+  const live = Object.values(S.trips).filter(on).sort((a, b) => (b.id === S.tripId) - (a.id === S.tripId) || (b.start || '').localeCompare(a.start || ''));
+  S.tripId = live.length ? live[0].id : null; S.openExp = null; S.reorder = null;
+  if (S.tripId) { S.tab = 'plan'; S.pday = d; }
+  savePrefs();
+}
+let hiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+  const away = hiddenAt && Date.now() - hiddenAt > 30 * 60 * 1000; hiddenAt = 0;
+  if (!away || !S.ready || sheet.open || $('dialog.viewer[open]')) return;
+  startScreen(); render(); window.scrollTo(0, 0);
+});
 // ===== 폰 뒤로가기: 열린 창을 닫고, 여행 안이면 홈으로, 홈이면 앱 종료 =====
 // 안드로이드 앱(APK)에서는 뒤로가기 버튼을 웹으로 넘겨받는다 (@capacitor/app 필요)
 (function capBack() {
@@ -2522,9 +2584,13 @@ function bindPlaceSearch(t, pl, sug, onPick) {
     } catch { toast('위치를 가져오지 못했어요. 다시 골라 주세요.'); }
   };
 }
-function sheetPlan(t, id, date) {
+function sheetPlan(t, id, date, spot) {   // spot: 스팟에서 넘어온 장소 (스팟 목록에는 그대로 남는다). 장소가 있는 일정은 저장할 때 스팟과 이어진다
   const old = id ? t.plans.find(p => p.id === id) : null;
   const d = old ? clone(old) : { id: uid('p_'), date: date || defaultDate(t), time: '', title: '', place: '', mapUrl: '', memo: '', link: '', ts: Date.now() };
+  if (spot) {
+    Object.assign(d, { spot: spot.id, place: spot.place || '', mapUrl: spot.mapUrl || '', memo: spot.memo || '' });
+    if (spot.lat != null) Object.assign(d, { lat: spot.lat, lng: spot.lng, placeId: spot.placeId || '', addr: spot.addr || '' });
+  }
   let mapUrl = d.mapUrl || '', moved = false;
   let loc = d.lat != null ? { lat: d.lat, lng: d.lng, placeId: d.placeId || '', addr: d.addr || '' } : null;
   openSheet(sheetHead(old ? '일정 수정' : '일정 추가') +
@@ -2542,9 +2608,11 @@ function sheetPlan(t, id, date) {
       const rec = { ...d, date: $('#p-date', root).value, time: $('#p-time', root).value, title: $('#p-title', root).value.trim(), place: $('#p-place', root).value.trim(), mapUrl,
         lat: loc ? loc.lat : null, lng: loc ? loc.lng : null, placeId: loc ? loc.placeId : '', addr: loc ? loc.addr : '', memo: $('#p-memo', root).value.trim(), link: fixUrl($('#p-link', root).value) };
       if (!rec.title && !rec.place && !rec.mapUrl && !loc) { toast('할 일이나 장소를 입력해 주세요.'); $('#p-title', root).focus(); return; }
+      if (!old || old.place !== rec.place || !rec.spot) linkPlanSpot(t, rec);   // 일정에 넣은 장소는 스팟에도
       placePlan(t, rec, old);
       const i = t.plans.findIndex(p => p.id === rec.id);
       if (i >= 0) t.plans[i] = rec; else t.plans.push(rec);
+      if (spot) toast(rec.date ? `${fmtShort(rec.date)} 일정에 추가했어요` : '일정에 추가했어요');
       Store.save(t); closeSheet(); render();
     };
     const del = $('[data-del]', root);
@@ -2697,6 +2765,115 @@ function sheetNote(t, id, linkFirst) {
     });
     $(linkFirst ? '#n-url' : '#n-title', root).focus();
   }, () => { if (saved !== 'deleted') cleanupAssets(saved, old && old.files, d.files, fresh); });
+}
+
+// ----- 스팟 -----
+// 링크 붙여넣기는 호출 없음(링크 안 좌표만 읽음), 이름 검색은 일정 추가와 같은 방식(세션 1번)
+function sheetSpot(t, id) {
+  const old = id ? t.notes.find(n => n.id === id) : null;
+  const d = old ? clone(old) : { id: uid('n_'), place: '', mapUrl: '', memo: '', ts: Date.now() };
+  let mapUrl = d.mapUrl || '', loc = d.lat != null ? { lat: d.lat, lng: d.lng, placeId: d.placeId || '', addr: d.addr || '' } : null;
+  const imp = !old && importable(t).trips.length > 0;   // 같은 나라 여행에 스팟이 있을 때만
+  openSheet(sheetHead(old ? '스팟 수정' : '스팟 추가') +
+    `<div class="fld"><label for="sp-place">장소</label>
+    <div class="combo"><input id="sp-place" value="${esc(d.place)}" placeholder="${GMAPS_KEY ? '이름 검색 또는 구글지도 링크' : '장소 이름 또는 구글지도 링크'}" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="sp-sug"><ul class="combo-list places" id="sp-sug" role="listbox" hidden></ul></div>
+    <div class="map-stat" data-mapstat hidden><span data-mapstat-t></span><button type="button" class="link" data-unmap>해제</button></div>
+    <p class="hint">구글지도 앱에서 장소 → 공유 → 복사한 내용을 그대로 붙여넣으면 돼요.</p></div>
+    <div class="fld"><label for="sp-memo">메모</label><textarea id="sp-memo" style="min-height:70px">${esc(d.memo || '')}</textarea></div>
+    <div class="sheet-foot${imp ? ' sp-foot' : ''}">${old ? '<button class="btn danger" data-del>삭제</button>' : ''}<button class="btn primary" data-save>${old ? '수정 저장' : '추가하기'}</button>${imp ? `<button type="button" class="sheet-alt" data-act="importSpots">${IMPORT_IC}다른 여행에서 가져오기</button>` : ''}</div>`, root => {
+    const pl = $('#sp-place', root), st = $('[data-mapstat]', root);
+    const showMap = () => { st.hidden = !mapUrl && !loc; $('[data-mapstat-t]', root).textContent = loc ? `📍 위치 연결됨${loc.addr ? ' · ' + loc.addr : ''}` : '🔗 지도 링크 연결됨'; };
+    const takePlace = v => {
+      const r = parsePlaceInput(v); if (!r.url) return;
+      mapUrl = r.url; if (r.name) pl.value = r.name; else if (/^https?:/.test(pl.value.trim())) pl.value = '';
+      const m = r.url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) || r.url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+      loc = m ? { lat: +m[1], lng: +m[2], placeId: '', addr: '' } : null; showMap();
+    };
+    showMap();
+    pl.addEventListener('paste', e => { const txt = (e.clipboardData || window.clipboardData).getData('text'); if (/https?:\/\//.test(txt)) { e.preventDefault(); takePlace(txt); } });
+    pl.addEventListener('change', () => { if (/https?:\/\//.test(pl.value)) takePlace(pl.value); });
+    $('[data-unmap]', root).onclick = () => { mapUrl = ''; loc = null; showMap(); };
+    bindPlaceSearch(t, pl, $('#sp-sug', root), r => { loc = r; mapUrl = ''; showMap(); });
+    $('[data-save]', root).onclick = () => {
+      const place = pl.value.trim();
+      if (!place && !mapUrl) { toast('장소 이름이나 구글지도 링크를 넣어 주세요.'); pl.focus(); return; }
+      const rec = { id: d.id, spot: true, ts: d.ts || Date.now(), place, mapUrl, memo: $('#sp-memo', root).value.trim(), updated: Date.now(),
+        ...(loc ? { lat: loc.lat, lng: loc.lng, placeId: loc.placeId, addr: loc.addr } : {}) };
+      const i = t.notes.findIndex(n => n.id === rec.id);
+      if (i >= 0) t.notes[i] = rec; else t.notes.push(rec);
+      Store.save(t); closeSheet(); render();
+    };
+    const del = $('[data-del]', root);
+    if (del) del.onclick = () => armConfirm(del, '한 번 더 누르면 삭제', () => { t.notes = t.notes.filter(n => n.id !== d.id); Store.save(t); closeSheet(); render(); });
+    if (!old) pl.focus();
+  });
+}
+
+// 여행의 나라들 (여행 설정의 '어디로 가나요?', 예전 여행은 통화·시간대로 짐작)
+function tripCountries(t) {
+  const ls = legsOf(t), src = ls.length ? ls : (t.curs || []).length ? [{ cur: t.curs[0], tz: t.tz }] : [];
+  return new Set(src.map(legCountry).filter(Boolean).map(c => c.k));
+}
+// 가져올 수 있는 스팟: 이 여행과 나라가 겹치는 다른 여행들의 스팟을 장소 이름으로 합쳐, 최근 여행·최근 저장 순으로
+// 같은 장소인지 비교할 열쇠: 띄어쓰기·기호를 뺀 이름 (이름이 없으면 지도 링크)
+const spotKey = s => (s.place || '').replace(/[\s.,·()\-]/g, '').toLowerCase() || safeUrl(s.mapUrl);
+// 일정 → 스팟: 장소가 있는 일정은 같은 이름의 스팟에 잇고, 없으면 스팟을 만든다
+// 스팟 id는 일정 id에서 만들어서, 함께 쓰는 사람들 폰에서 동시에 만들어도 하나로 합쳐진다
+function linkPlanSpot(t, p) {
+  const k = (p.place || '').trim() ? spotKey(p) : '';
+  if (!k) { delete p.spot; return; }
+  let s = t.notes.find(n => n.spot && spotKey(n) === k);
+  if (!s) {
+    const id = 'n_' + String(p.id).replace(/^p_/, '');
+    s = { id: t.notes.some(n => n.id === id) ? uid('n_') : id, spot: true, ts: p.ts || Date.now(), updated: Date.now(), place: p.place.trim(), mapUrl: p.mapUrl || '', memo: '' };
+    t.notes.push(s);
+  }
+  if (s.lat == null && p.lat != null) Object.assign(s, { lat: p.lat, lng: p.lng, placeId: p.placeId || '', addr: p.addr || '', updated: Date.now() });   // 스팟에 위치가 없으면 일정의 위치로 채움
+  p.spot = s.id;
+}
+// 스팟 탭을 열 때: 아직 스팟과 이어지지 않은 일정만 잇는다 (스팟을 지운 일정은 다시 만들지 않음)
+function linkAllPlanSpots(t) {
+  let n = 0;
+  for (const p of t.plans) if (!p.spot && (p.place || '').trim()) { linkPlanSpot(t, p); n++; }
+  if (n) Store.save(t);
+}
+// 가져올 수 있는 장소: 이 여행과 나라가 겹치는 다른 여행의 스팟 + 스팟과 이어지지 않은 일정의 장소를, 이름으로 합쳐 최근 여행·최근 저장 순으로
+function importable(t) {
+  const mine = tripCountries(t);
+  const fromPlans = x => (x.plans || []).filter(p => !p.spot && (p.place || '').trim()).map(p => ({ place: p.place.trim(), mapUrl: p.mapUrl || '', memo: '', ts: p.ts || 0,
+    ...(p.lat != null ? { lat: p.lat, lng: p.lng, placeId: p.placeId || '', addr: p.addr || '' } : {}) }));
+  const cand = x => [...(x.notes || []).filter(n => n.spot), ...fromPlans(x)];
+  const trips = Object.values(S.trips).filter(x => x.id !== t.id && [...tripCountries(x)].some(k => mine.has(k)) && cand(x).length);
+  const at = e => `${e.x.start || ''} ${String(e.s.ts || 0).padStart(15, '0')}`, m = new Map();
+  for (const x of trips) for (const s of cand(x)) { const k = spotKey(s); if (k) { if (!m.has(k)) m.set(k, { k, list: [] }); m.get(k).list.push({ s, x }); } }
+  const items = [...m.values()].map(g => (g.list.sort((a, b) => at(b).localeCompare(at(a))), g)).sort((a, b) => at(b.list[0]).localeCompare(at(a.list[0])));
+  return { trips, items, have: new Set([...t.notes.filter(n => n.spot), ...t.plans.filter(p => (p.place || '').trim())].map(spotKey)) };
+}
+// 다른 여행의 스팟을 이 여행으로 복사 (원래 여행은 그대로, 이미 있는 곳은 못 고름)
+// 여행별로 나누지 않고 장소 하나에 한 줄: 오른쪽에 모은 여행(가장 최근 여행, 여러 번이면 +N)
+function sheetSpotImport(t) {
+  const { trips, items, have } = importable(t), names = [...tripCountries(t)].map(k => COUNTRY[k].name).join(', ');
+  openSheet(sheetHead('다른 여행에서 가져오기') +
+    `<div class="imp-head"><p class="hint">${esc(names)} 여행 ${trips.length}개의 스팟·일정 장소 ${items.length}곳</p><button type="button" class="link" data-all>모두 고르기</button></div>
+    <ul class="ck-list imp-list">${items.map((g, i) => {
+      const top = g.list[0], dup = have.has(g.k), n = new Set(g.list.map(e => e.x.id)).size, mm = g.list.find(e => e.s.memo);
+      return `<li${dup ? ' class="dup"' : ''}><input type="checkbox" id="im-${i}" data-i="${i}"${dup ? ' disabled' : ''}><label for="im-${i}"><span>${esc(top.s.place || '이름 없는 장소')}</span>
+        <small class="src">${dup ? '이미 있어요' : esc(top.x.name) + (n > 1 ? ` +${n - 1}` : '')}</small>${mm ? `<small class="memo">${esc(mm.s.memo)}</small>` : ''}</label></li>`; }).join('')}</ul>
+    <div class="sheet-foot"><button class="btn primary" data-save disabled>가져오기</button></div>`, root => {
+    const btn = $('[data-save]', root), picked = () => $$('input[data-i]:checked', root);
+    const sync = () => { const n = picked().length; btn.disabled = !n; btn.textContent = n ? `${n}곳 가져오기` : '가져오기'; };
+    root.addEventListener('change', sync);
+    $('[data-all]', root).onclick = () => { const bx = $$('input[data-i]:not(:disabled)', root), on = bx.some(c => !c.checked); bx.forEach(c => { c.checked = on; }); sync(); };
+    btn.onclick = () => {
+      const now = Date.now(); let k = 0;
+      for (const c of picked()) {
+        const g = items[+c.dataset.i], s = (g.list.find(e => e.s.lat != null) || g.list[0]).s, mm = g.list.find(e => e.s.memo);   // 위치가 있는 기록을 우선
+        t.notes.push({ id: uid('n_'), spot: true, ts: now - k++, updated: now, place: g.list[0].s.place || s.place || '', mapUrl: s.mapUrl || '', memo: mm ? mm.s.memo : '',
+          ...(s.lat != null ? { lat: s.lat, lng: s.lng, placeId: s.placeId || '', addr: s.addr || '' } : {}) });
+      }
+      Store.save(t); closeSheet(); render(); toast(`${k}곳을 가져왔어요`);
+    };
+  });
 }
 
 // ----- 일기 -----
@@ -3039,8 +3216,12 @@ const ACT = {
   addStay: () => sheetStay(cur()),
   editStay: el => sheetStay(cur(), el.dataset.id),
   addNote: () => sheetNote(cur(), null, false),
-  addLink: () => sheetNote(cur(), null, true),
   editNote: el => sheetNote(cur(), el.dataset.id),
+  nview: el => { S.nview = el.dataset.v; if (S.nview === 'spots') linkAllPlanSpots(cur()); render(); },
+  addSpot: () => sheetSpot(cur()),
+  editSpot: el => sheetSpot(cur(), el.dataset.id),
+  spotToPlan: el => { const t = cur(), s = t.notes.find(n => n.id === el.dataset.id); if (s) sheetPlan(t, null, defaultDate(t), s); },
+  importSpots: () => sheetSpotImport(cur()),
   addCheck: () => addCheck(),
   addPack: el => addPack(el.dataset.kind),
   delPack: el => {
