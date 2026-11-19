@@ -272,7 +272,7 @@ th{font-size:.8rem;color:var(--ink-2);font-weight:600}
 /* forms */
 input:not([type=checkbox]),select,textarea{width:100%;min-height:44px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface)}
 textarea{min-height:120px;resize:vertical;line-height:1.6}
-.fld{display:grid;gap:6px;margin-top:14px}
+.fld{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;margin-top:14px}   /* 긴 주소·제안 목록이 칸을 넓혀 시트가 옆으로 밀리지 않게 */
 .fld>label,.fld .fl{font-size:.84rem;font-weight:600;color:var(--ink-2)}
 .fld.two{grid-template-columns:1fr 1fr;gap:10px}
 .fld.two>div{display:grid;gap:6px}
@@ -361,6 +361,7 @@ body{background:radial-gradient(900px 360px at 50% -140px,var(--green-soft),tran
 .combo-list.places li{display:grid;justify-content:stretch;gap:1px;padding:8px 12px}
 .combo-list.places li small{font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .map-stat span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.map-stat>button{flex:none}
 .books{display:grid;gap:8px;margin:12px 0 10px}
 .book-main{width:100%;text-align:left;display:grid;grid-template-columns:30px 1fr;gap:2px 8px;align-items:center;padding:12px 14px;border:0;border-radius:14px;background:var(--surface);box-shadow:var(--sh)}
 .bk-ic{grid-row:span 2;font-size:1.25rem;text-align:center}
